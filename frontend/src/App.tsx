@@ -11,6 +11,7 @@ import PortfolioView from './pages/PortfolioView';
 import PortfolioManagement from './pages/PortfolioManagement';
 import StockManagement from './pages/StockManagement';
 import OptionManagement from './pages/OptionManagement';
+import PortfolioAnalytics from './pages/PortfolioAnalytics';
 
 const theme = createTheme({
   palette: {
@@ -50,6 +51,7 @@ function App() {
               <Route path="/portfolios" element={<PortfolioManagement />} />
               <Route path="/stocks" element={<StockManagement />} />
               <Route path="/options" element={<OptionManagement />} />
+              <Route path="/portfolio-analytics" element={<PortfolioAnalytics />} />
             </Routes>
           </Box>
         </Box>

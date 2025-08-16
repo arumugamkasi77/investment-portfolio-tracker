@@ -109,15 +109,18 @@ start_backend() {
     
     cd backend
     
-    # Check if virtual environment exists
-    if [ ! -d "venv" ]; then
+    # Check if virtual environment exists at project root
+    if [ -d "../.venv" ]; then
+        echo -e "${YELLOW}Using project root virtual environment...${NC}"
+        source ../.venv/bin/activate
+    elif [ -d "venv" ]; then
+        echo -e "${YELLOW}Using backend virtual environment...${NC}"
+        source venv/bin/activate
+    else
         echo -e "${YELLOW}Creating virtual environment...${NC}"
         python3 -m venv venv
+        source venv/bin/activate
     fi
-    
-    # Activate virtual environment
-    echo -e "${YELLOW}Activating virtual environment...${NC}"
-    source venv/bin/activate
     
     # Install/update dependencies
     echo -e "${YELLOW}Installing/updating dependencies...${NC}"

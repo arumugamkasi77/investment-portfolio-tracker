@@ -83,10 +83,11 @@ class EnhancedSnapshotsService:
                     symbol = position["symbol"]
                     
                     # Check if snapshot already exists for this date
+                    snapshot_datetime = datetime.combine(snapshot_date, datetime.min.time())
                     existing_snapshot = await daily_snapshots_collection.find_one({
                         "portfolio_name": portfolio_name,
                         "symbol": symbol,
-                        "snapshot_date": snapshot_date
+                        "snapshot_date": snapshot_datetime
                     })
                     
                     if not existing_snapshot:
@@ -94,7 +95,7 @@ class EnhancedSnapshotsService:
                         snapshot_data = {
                             "portfolio_name": portfolio_name,
                             "symbol": symbol,
-                            "snapshot_date": snapshot_date,
+                            "snapshot_date": datetime.combine(snapshot_date, datetime.min.time()),  # Convert date to datetime
                             "position_quantity": position["position_quantity"],
                             "average_cost": position["average_cost"],
                             "current_price": position["current_price"],
@@ -128,6 +129,12 @@ class EnhancedSnapshotsService:
         month_start = today.replace(day=1)
         year_start = today.replace(month=1, day=1)
         
+        # Convert to datetime for MongoDB queries
+        today_datetime = datetime.combine(today, datetime.min.time())
+        yesterday_datetime = datetime.combine(yesterday, datetime.min.time())
+        month_start_datetime = datetime.combine(month_start, datetime.min.time())
+        year_start_datetime = datetime.combine(year_start, datetime.min.time())
+        
         # Get current positions using existing logic
         current_positions = await self.get_portfolio_positions_simple(portfolio_name)
         
@@ -144,19 +151,19 @@ class EnhancedSnapshotsService:
             yesterday_snapshot = await daily_snapshots_collection.find_one({
                 "portfolio_name": portfolio_name,
                 "symbol": current_symbol,
-                "snapshot_date": yesterday
+                "snapshot_date": yesterday_datetime
             })
             
             month_start_snapshot = await daily_snapshots_collection.find_one({
                 "portfolio_name": portfolio_name,
                 "symbol": current_symbol,
-                "snapshot_date": month_start
+                "snapshot_date": month_start_datetime
             })
             
             year_start_snapshot = await daily_snapshots_collection.find_one({
                 "portfolio_name": portfolio_name,
                 "symbol": current_symbol,
-                "snapshot_date": year_start
+                "snapshot_date": year_start_datetime
             })
             
             # Calculate DTD, MTD, YTD P&L

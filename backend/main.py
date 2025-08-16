@@ -11,11 +11,38 @@ from dotenv import load_dotenv
 import uvicorn
 
 from database import connect_to_mongo, close_mongo_connection
-from routers import trades, portfolios, snapshots, portfolio_static, stocks, options, market_data, enhanced_snapshots, scheduler
+from routers import trades, portfolios, snapshots, portfolio_static, stocks, options, market_data, enhanced_snapshots, scheduler, portfolio_analytics
 
 load_dotenv()
 
-app = FastAPI(title="Investment Portfolio Tracker", version="1.0.0")
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan context manager for startup and shutdown events"""
+    # Startup
+    try:
+        await connect_to_mongo()
+        print("Database connection established successfully")
+        print("Database ready - daily snapshots can be triggered manually")
+    except Exception as e:
+        print(f"Database connection failed: {e}")
+    
+    yield
+    
+    # Shutdown
+    try:
+        await close_mongo_connection()
+        print("Database connection closed")
+    except Exception as e:
+        print(f"Error closing database connection: {e}")
+
+# Create FastAPI app with lifespan
+app = FastAPI(
+    title="Investment Portfolio Tracker", 
+    version="1.0.0",
+    lifespan=lifespan
+)
 
 # CORS middleware
 app.add_middleware(
@@ -39,26 +66,8 @@ app.include_router(market_data.router)
 app.include_router(enhanced_snapshots.router)
 app.include_router(scheduler.router)
 
-@app.on_event("startup")
-async def startup_event():
-    """Initialize database connection and start scheduler"""
-    try:
-        await connect_to_mongo()
-        print("Database connection established successfully")
-        
-        print("Database ready - daily snapshots can be triggered manually")
-            
-    except Exception as e:
-        print(f"Database connection failed: {e}")
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Close database connection"""
-    try:
-        await close_mongo_connection()
-        print("Database connection closed")
-    except Exception as e:
-        print(f"Error closing database connection: {e}")
+# Include portfolio analytics
+app.include_router(portfolio_analytics.router)
 
 @app.get("/")
 async def root():
@@ -78,4 +87,4 @@ async def health_check():
         )
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run(app, host="0.0.0.0", port=8000)

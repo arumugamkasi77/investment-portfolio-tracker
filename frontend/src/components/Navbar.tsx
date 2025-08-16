@@ -28,6 +28,7 @@ const Navbar: React.FC = () => {
         { label: 'Dashboard', path: '/', icon: <DashboardIcon /> },
         { label: 'Trade Management', path: '/trade-entry', icon: <AddCircleIcon /> },
         { label: 'Portfolio View', path: '/portfolio', icon: <AssessmentIcon /> },
+        { label: 'Portfolio Analytics', path: '/portfolio-analytics', icon: <AssessmentIcon /> },
     ];
 
     const settingsMenuItems = [

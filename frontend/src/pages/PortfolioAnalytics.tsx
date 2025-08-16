@@ -467,165 +467,169 @@ const PortfolioAnalytics: React.FC = () => {
                             </Box>
                         </Box>
 
-                        <Box>
-                            <Typography variant="h6" gutterBottom>
-                                Stock Correlations Matrix
-                            </Typography>
-                            <Paper sx={{ p: 2, overflow: 'auto' }}>
-                                <Box sx={{ display: 'grid', gap: 1 }}>
-                                    {/* Header row with stock symbols */}
-                                    <Box sx={{
-                                        display: 'grid',
-                                        gridTemplateColumns: `auto repeat(${analytics.correlations.stock_count}, 1fr)`,
-                                        gap: 1,
-                                        alignItems: 'center',
-                                        mb: 1
-                                    }}>
-                                        <Box sx={{ width: 80 }} /> {/* Empty corner */}
-                                        {analytics.correlations.correlations
-                                            .filter((corr: any) => corr.symbol1 === analytics.correlations.correlations[0]?.symbol1)
-                                            .map((corr: any, index: number) => (
-                                                <Typography
-                                                    key={corr.symbol2}
-                                                    variant="body2"
-                                                    sx={{
-                                                        textAlign: 'center',
-                                                        fontWeight: 'bold',
-                                                        fontSize: '0.75rem'
-                                                    }}
-                                                >
-                                                    {corr.symbol2}
-                                                </Typography>
-                                            ))}
-                                    </Box>
+                                                    <Box>
+                                <Typography variant="h6" gutterBottom>
+                                    Stock Correlations Matrix
+                                </Typography>
+                                <Paper sx={{ p: 2, overflow: 'auto' }}>
+                                    <Box sx={{ display: 'grid', gap: 1 }}>
 
-                                    {/* Correlation matrix rows */}
+                                    {/* Correlation matrix */}
                                     {(() => {
                                         const symbols = Array.from(new Set([
                                             ...analytics.correlations.correlations.map((c: any) => c.symbol1),
                                             ...analytics.correlations.correlations.map((c: any) => c.symbol2)
                                         ])).sort();
 
-                                        return symbols.map((symbol1, rowIndex) => (
-                                            <Box
-                                                key={symbol1}
-                                                sx={{
-                                                    display: 'grid',
-                                                    gridTemplateColumns: `auto repeat(${analytics.correlations.stock_count}, 1fr)`,
+                                        return (
+                                            <>
+                                                {/* Header row with stock symbols */}
+                                                <Box sx={{ 
+                                                    display: 'grid', 
+                                                    gridTemplateColumns: `auto repeat(${symbols.length}, 1fr)`,
                                                     gap: 1,
-                                                    alignItems: 'center'
-                                                }}
-                                            >
-                                                {/* Row label */}
-                                                <Typography
-                                                    variant="body2"
-                                                    sx={{
-                                                        fontWeight: 'bold',
-                                                        fontSize: '0.75rem',
-                                                        width: 80
-                                                    }}
-                                                >
-                                                    {symbol1}
-                                                </Typography>
-
-                                                {/* Correlation values */}
-                                                {symbols.map((symbol2, colIndex) => {
-                                                    if (rowIndex === colIndex) {
-                                                        // Diagonal - always 1.0
-                                                        return (
-                                                            <Box
-                                                                key={symbol2}
-                                                                sx={{
-                                                                    width: 40,
-                                                                    height: 40,
-                                                                    display: 'flex',
-                                                                    alignItems: 'center',
-                                                                    justifyContent: 'center',
-                                                                    bgcolor: 'primary.main',
-                                                                    color: 'white',
-                                                                    borderRadius: 1,
-                                                                    fontSize: '0.7rem',
-                                                                    fontWeight: 'bold'
-                                                                }}
-                                                            >
-                                                                1.0
-                                                            </Box>
-                                                        );
-                                                    }
-
-                                                    // Find correlation between these two symbols
-                                                    const correlation = analytics.correlations.correlations.find(
-                                                        (corr: any) =>
-                                                            (corr.symbol1 === symbol1 && corr.symbol2 === symbol2) ||
-                                                            (corr.symbol1 === symbol2 && corr.symbol2 === symbol1)
-                                                    );
-
-                                                    if (correlation) {
-                                                        const absCorr = Math.abs(correlation.correlation_score);
-                                                        let bgColor = 'success.light';
-                                                        let textColor = 'success.dark';
-
-                                                        if (absCorr >= 0.7) {
-                                                            bgColor = 'error.light';
-                                                            textColor = 'error.dark';
-                                                        } else if (absCorr >= 0.4) {
-                                                            bgColor = 'warning.light';
-                                                            textColor = 'warning.dark';
-                                                        } else if (absCorr >= 0.2) {
-                                                            bgColor = 'info.light';
-                                                            textColor = 'info.dark';
-                                                        }
-
-                                                        return (
-                                                            <Box
-                                                                key={symbol2}
-                                                                sx={{
-                                                                    width: 40,
-                                                                    height: 40,
-                                                                    display: 'flex',
-                                                                    alignItems: 'center',
-                                                                    justifyContent: 'center',
-                                                                    bgcolor: bgColor,
-                                                                    color: textColor,
-                                                                    borderRadius: 1,
-                                                                    fontSize: '0.7rem',
-                                                                    fontWeight: 'bold',
-                                                                    cursor: 'pointer',
-                                                                    '&:hover': {
-                                                                        opacity: 0.8,
-                                                                        transform: 'scale(1.05)'
-                                                                    },
-                                                                    transition: 'all 0.2s'
-                                                                }}
-                                                                title={`${correlation.symbol1} ↔ ${correlation.symbol2}: ${correlation.correlation_score} (${correlation.correlation_strength})`}
-                                                            >
-                                                                {correlation.correlation_score}
-                                                            </Box>
-                                                        );
-                                                    }
-
-                                                    // No correlation data
-                                                    return (
-                                                        <Box
-                                                            key={symbol2}
-                                                            sx={{
-                                                                width: 40,
-                                                                height: 40,
-                                                                display: 'flex',
-                                                                alignItems: 'center',
-                                                                justifyContent: 'center',
-                                                                bgcolor: 'grey.100',
-                                                                color: 'grey.500',
-                                                                borderRadius: 1,
-                                                                fontSize: '0.7rem'
+                                                    alignItems: 'center',
+                                                    mb: 1
+                                                }}>
+                                                    <Box sx={{ width: 80 }} /> {/* Empty corner */}
+                                                    {symbols.map((symbol: string) => (
+                                                        <Typography 
+                                                            key={symbol} 
+                                                            variant="body2" 
+                                                            sx={{ 
+                                                                textAlign: 'center', 
+                                                                fontWeight: 'bold',
+                                                                fontSize: '0.75rem'
                                                             }}
                                                         >
-                                                            -
-                                                        </Box>
-                                                    );
-                                                })}
-                                            </Box>
-                                        ));
+                                                            {symbol}
+                                                        </Typography>
+                                                    ))}
+                                                </Box>
+
+                                                {/* Matrix rows */}
+                                                {symbols.map((symbol1: string, rowIndex: number) => (
+                                                    <Box
+                                                        key={symbol1}
+                                                        sx={{
+                                                            display: 'grid',
+                                                            gridTemplateColumns: `auto repeat(${symbols.length}, 1fr)`,
+                                                            gap: 1,
+                                                            alignItems: 'center'
+                                                        }}
+                                                    >
+                                                        {/* Row label */}
+                                                        <Typography
+                                                            variant="body2"
+                                                            sx={{
+                                                                fontWeight: 'bold',
+                                                                fontSize: '0.75rem',
+                                                                width: 80
+                                                            }}
+                                                        >
+                                                            {symbol1}
+                                                        </Typography>
+
+                                                        {/* Correlation values */}
+                                                        {symbols.map((symbol2: string, colIndex: number) => {
+                                                            if (rowIndex === colIndex) {
+                                                                // Diagonal - always 1.0
+                                                                return (
+                                                                    <Box
+                                                                        key={symbol2}
+                                                                        sx={{
+                                                                            width: 40,
+                                                                            height: 40,
+                                                                            display: 'flex',
+                                                                            alignItems: 'center',
+                                                                            justifyContent: 'center',
+                                                                            bgcolor: 'primary.main',
+                                                                            color: 'white',
+                                                                            borderRadius: 1,
+                                                                            fontSize: '0.7rem',
+                                                                            fontWeight: 'bold'
+                                                                        }}
+                                                                    >
+                                                                        1.0
+                                                                    </Box>
+                                                                );
+                                                            }
+
+                                                            // Find correlation between these two symbols
+                                                            const correlation = analytics.correlations.correlations.find(
+                                                                (corr: any) =>
+                                                                    (corr.symbol1 === symbol1 && corr.symbol2 === symbol2) ||
+                                                                    (corr.symbol1 === symbol2 && corr.symbol2 === symbol1)
+                                                            );
+
+                                                            if (correlation) {
+                                                                const absCorr = Math.abs(correlation.correlation_score);
+                                                                let bgColor = 'success.light';
+                                                                let textColor = 'success.dark';
+
+                                                                if (absCorr >= 0.7) {
+                                                                    bgColor = 'error.light';
+                                                                    textColor = 'error.dark';
+                                                                } else if (absCorr >= 0.4) {
+                                                                    bgColor = 'warning.light';
+                                                                    textColor = 'warning.dark';
+                                                                } else if (absCorr >= 0.2) {
+                                                                    bgColor = 'info.light';
+                                                                    textColor = 'info.dark';
+                                                                }
+
+                                                                return (
+                                                                    <Box
+                                                                        key={symbol2}
+                                                                        sx={{
+                                                                            width: 40,
+                                                                            height: 40,
+                                                                            display: 'flex',
+                                                                            alignItems: 'center',
+                                                                            justifyContent: 'center',
+                                                                            bgcolor: bgColor,
+                                                                            color: textColor,
+                                                                            borderRadius: 1,
+                                                                            fontSize: '0.7rem',
+                                                                            fontWeight: 'bold',
+                                                                            cursor: 'pointer',
+                                                                            '&:hover': {
+                                                                                opacity: 0.8,
+                                                                                transform: 'scale(1.05)'
+                                                                            },
+                                                                            transition: 'all 0.2s'
+                                                                        }}
+                                                                        title={`${correlation.symbol1} ↔ ${correlation.symbol2}: ${correlation.correlation_score} (${correlation.correlation_strength})`}
+                                                                    >
+                                                                        {correlation.correlation_score}
+                                                                    </Box>
+                                                                );
+                                                            }
+
+                                                            // No correlation data
+                                                            return (
+                                                                <Box
+                                                                    key={symbol2}
+                                                                    sx={{
+                                                                        width: 40,
+                                                                        height: 40,
+                                                                        display: 'flex',
+                                                                        alignItems: 'center',
+                                                                        justifyContent: 'center',
+                                                                        bgcolor: 'grey.100',
+                                                                        color: 'grey.500',
+                                                                        borderRadius: 1,
+                                                                        fontSize: '0.7rem'
+                                                                    }}
+                                                                >
+                                                                    -
+                                                                </Box>
+                                                            );
+                                                        })}
+                                                    </Box>
+                                                ))}
+                                            </>
+                                        );
                                     })()}
                                 </Box>
 

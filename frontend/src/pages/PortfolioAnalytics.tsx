@@ -486,24 +486,32 @@ const PortfolioAnalytics: React.FC = () => {
                                                 {/* Header row with stock symbols */}
                                                 <Box sx={{ 
                                                     display: 'grid', 
-                                                    gridTemplateColumns: `auto repeat(${symbols.length}, 1fr)`,
+                                                    gridTemplateColumns: `80px repeat(${symbols.length}, 1fr)`,
                                                     gap: 1,
                                                     alignItems: 'center',
                                                     mb: 1
                                                 }}>
                                                     <Box sx={{ width: 80 }} /> {/* Empty corner */}
                                                     {symbols.map((symbol: string) => (
-                                                        <Typography 
-                                                            key={symbol} 
-                                                            variant="body2" 
-                                                            sx={{ 
-                                                                textAlign: 'center', 
-                                                                fontWeight: 'bold',
-                                                                fontSize: '0.75rem'
+                                                        <Box
+                                                            key={symbol}
+                                                            sx={{
+                                                                display: 'flex',
+                                                                justifyContent: 'center',
+                                                                alignItems: 'center',
+                                                                height: 40
                                                             }}
                                                         >
-                                                            {symbol}
-                                                        </Typography>
+                                                            <Typography 
+                                                                variant="body2" 
+                                                                sx={{ 
+                                                                    fontWeight: 'bold',
+                                                                    fontSize: '0.75rem'
+                                                                }}
+                                                            >
+                                                                {symbol}
+                                                            </Typography>
+                                                        </Box>
                                                     ))}
                                                 </Box>
 
@@ -513,22 +521,31 @@ const PortfolioAnalytics: React.FC = () => {
                                                         key={symbol1}
                                                         sx={{
                                                             display: 'grid',
-                                                            gridTemplateColumns: `auto repeat(${symbols.length}, 1fr)`,
+                                                            gridTemplateColumns: `80px repeat(${symbols.length}, 1fr)`,
                                                             gap: 1,
                                                             alignItems: 'center'
                                                         }}
                                                     >
                                                         {/* Row label */}
-                                                        <Typography
-                                                            variant="body2"
+                                                        <Box
                                                             sx={{
-                                                                fontWeight: 'bold',
-                                                                fontSize: '0.75rem',
+                                                                display: 'flex',
+                                                                justifyContent: 'flex-start',
+                                                                alignItems: 'center',
+                                                                height: 40,
                                                                 width: 80
                                                             }}
                                                         >
-                                                            {symbol1}
-                                                        </Typography>
+                                                            <Typography
+                                                                variant="body2"
+                                                                sx={{
+                                                                    fontWeight: 'bold',
+                                                                    fontSize: '0.75rem'
+                                                                }}
+                                                            >
+                                                                {symbol1}
+                                                            </Typography>
+                                                        </Box>
 
                                                         {/* Correlation values */}
                                                         {symbols.map((symbol2: string, colIndex: number) => {
@@ -538,19 +555,28 @@ const PortfolioAnalytics: React.FC = () => {
                                                                     <Box
                                                                         key={symbol2}
                                                                         sx={{
-                                                                            width: 40,
-                                                                            height: 40,
                                                                             display: 'flex',
-                                                                            alignItems: 'center',
                                                                             justifyContent: 'center',
-                                                                            bgcolor: 'primary.main',
-                                                                            color: 'white',
-                                                                            borderRadius: 1,
-                                                                            fontSize: '0.7rem',
-                                                                            fontWeight: 'bold'
+                                                                            alignItems: 'center',
+                                                                            height: 40
                                                                         }}
                                                                     >
-                                                                        1.0
+                                                                        <Box
+                                                                            sx={{
+                                                                                width: 40,
+                                                                                height: 40,
+                                                                                display: 'flex',
+                                                                                alignItems: 'center',
+                                                                                justifyContent: 'center',
+                                                                                bgcolor: 'primary.main',
+                                                                                color: 'white',
+                                                                                borderRadius: 1,
+                                                                                fontSize: '0.7rem',
+                                                                                fontWeight: 'bold'
+                                                                            }}
+                                                                        >
+                                                                            1.0
+                                                                        </Box>
                                                                     </Box>
                                                                 );
                                                             }
@@ -582,26 +608,35 @@ const PortfolioAnalytics: React.FC = () => {
                                                                     <Box
                                                                         key={symbol2}
                                                                         sx={{
-                                                                            width: 40,
-                                                                            height: 40,
                                                                             display: 'flex',
-                                                                            alignItems: 'center',
                                                                             justifyContent: 'center',
-                                                                            bgcolor: bgColor,
-                                                                            color: textColor,
-                                                                            borderRadius: 1,
-                                                                            fontSize: '0.7rem',
-                                                                            fontWeight: 'bold',
-                                                                            cursor: 'pointer',
-                                                                            '&:hover': {
-                                                                                opacity: 0.8,
-                                                                                transform: 'scale(1.05)'
-                                                                            },
-                                                                            transition: 'all 0.2s'
+                                                                            alignItems: 'center',
+                                                                            height: 40
                                                                         }}
-                                                                        title={`${correlation.symbol1} ↔ ${correlation.symbol2}: ${correlation.correlation_score} (${correlation.correlation_strength})`}
                                                                     >
-                                                                        {correlation.correlation_score}
+                                                                        <Box
+                                                                            sx={{
+                                                                                width: 40,
+                                                                                height: 40,
+                                                                                display: 'flex',
+                                                                                alignItems: 'center',
+                                                                                justifyContent: 'center',
+                                                                                bgcolor: bgColor,
+                                                                                color: textColor,
+                                                                                borderRadius: 1,
+                                                                                fontSize: '0.7rem',
+                                                                                fontWeight: 'bold',
+                                                                                cursor: 'pointer',
+                                                                                '&:hover': {
+                                                                                    opacity: 0.8,
+                                                                                    transform: 'scale(1.05)'
+                                                                                },
+                                                                                transition: 'all 0.2s'
+                                                                            }}
+                                                                            title={`${correlation.symbol1} ↔ ${correlation.symbol2}: ${correlation.correlation_score} (${correlation.correlation_strength})`}
+                                                                        >
+                                                                            {correlation.correlation_score}
+                                                                        </Box>
                                                                     </Box>
                                                                 );
                                                             }
@@ -611,18 +646,27 @@ const PortfolioAnalytics: React.FC = () => {
                                                                 <Box
                                                                     key={symbol2}
                                                                     sx={{
-                                                                        width: 40,
-                                                                        height: 40,
                                                                         display: 'flex',
-                                                                        alignItems: 'center',
                                                                         justifyContent: 'center',
-                                                                        bgcolor: 'grey.100',
-                                                                        color: 'grey.500',
-                                                                        borderRadius: 1,
-                                                                        fontSize: '0.7rem'
+                                                                        alignItems: 'center',
+                                                                        height: 40
                                                                     }}
                                                                 >
-                                                                    -
+                                                                    <Box
+                                                                        sx={{
+                                                                            width: 40,
+                                                                            height: 40,
+                                                                            display: 'flex',
+                                                                            alignItems: 'center',
+                                                                            justifyContent: 'center',
+                                                                            bgcolor: 'grey.100',
+                                                                            color: 'grey.500',
+                                                                            borderRadius: 1,
+                                                                            fontSize: '0.7rem'
+                                                                        }}
+                                                                    >
+                                                                        -
+                                                                    </Box>
                                                                 </Box>
                                                             );
                                                         })}

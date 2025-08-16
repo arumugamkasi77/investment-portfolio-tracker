@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 import uvicorn
 
 from database import connect_to_mongo, close_mongo_connection
-from routers import trades, portfolios, snapshots, portfolio_static, stocks, options, market_data
+from routers import trades, portfolios, snapshots, portfolio_static, stocks, options, market_data, enhanced_snapshots, scheduler
 
 load_dotenv()
 
@@ -34,6 +34,10 @@ app.include_router(portfolio_static.router)
 app.include_router(stocks.router)
 app.include_router(options.router)
 app.include_router(market_data.router)
+
+# Include enhanced functionality (separate layer)
+app.include_router(enhanced_snapshots.router)
+app.include_router(scheduler.router)
 
 @app.on_event("startup")
 async def startup_event():

@@ -1,98 +1,346 @@
 # Investment Portfolio Tracker
 
-A comprehensive web application for tracking investment portfolios, trades, and performance analytics.
+A comprehensive investment portfolio management system with real-time market data, P&L tracking, and full CRUD operations for trades, portfolios, stocks, and options.
 
-## Features
+## 🏗️ System Architecture
 
-- **Trade Entry**: Capture trades with Portfolio, Stock/Option details, Quantity, Buy/Sell, Price, Brokerage, and Remarks
-- **Portfolio Analytics**: View current portfolio values with Mark-to-Market pricing
-- **Performance Tracking**: DTD, MTD, YTD P&L calculations
-- **Automated Snapshots**: Daily P&L snapshots for historical tracking
+### **Backend (Python FastAPI)**
+- **Framework**: FastAPI with async/await support
+- **Database**: MongoDB with Motor async driver
+- **Market Data**: Yahoo Finance integration via yfinance
+- **API**: RESTful endpoints with automatic OpenAPI documentation
 
-## Tech Stack
+### **Frontend (React TypeScript)**
+- **Framework**: React 18 with TypeScript
+- **UI Library**: Material-UI (MUI) v7
+- **State Management**: React hooks and context
+- **Routing**: React Router DOM v6
+- **HTTP Client**: Axios for API communication
 
-- **Frontend**: React with modern UI components
-- **Backend**: Python with FastAPI
-- **Database**: MongoDB
-- **Automation**: Cron jobs for daily snapshots
+## 🚀 Features
 
-## Project Structure
+### **Core Portfolio Management**
+- ✅ **Portfolio Dashboard**: Total market value, P&L overview
+- ✅ **Portfolio View**: Detailed positions with real-time P&L calculations
+- ✅ **Trade Management**: Full CRUD operations for buy/sell transactions
+- ✅ **Real-time Market Data**: Live price updates from Yahoo Finance
 
+### **Static Data Management**
+- ✅ **Portfolio Management**: Create, edit, delete portfolio definitions
+- ✅ **Stock Management**: Manage stock symbols and company information
+- ✅ **Option Management**: Handle listed stock options with strike/expiry
+
+### **Advanced Features**
+- ✅ **P&L Calculations**: Inception P&L, mark-to-market valuations
+- ✅ **Multi-instrument Support**: Stocks and Options
+- ✅ **Brokerage Tracking**: Include transaction costs in calculations
+- ✅ **Responsive Design**: Mobile-friendly interface
+
+## 📊 Database Schema
+
+### **Collections**
+
+#### **Trades Collection**
+```json
+{
+  "_id": "ObjectId",
+  "portfolio_name": "string",
+  "symbol": "string",
+  "instrument_type": "STOCK|OPTION",
+  "quantity": "number",
+  "trade_type": "BUY|SELL",
+  "executed_price": "number",
+  "brokerage": "number",
+  "remarks": "string",
+  "trade_date": "datetime",
+  "created_at": "datetime",
+  "updated_at": "datetime"
+}
+```
+
+#### **Portfolios Collection**
+```json
+{
+  "_id": "ObjectId",
+  "portfolio_name": "string",
+  "owner": "string",
+  "description": "string",
+  "created_at": "datetime",
+  "updated_at": "datetime"
+}
+```
+
+#### **Stocks Collection**
+```json
+{
+  "_id": "ObjectId",
+  "symbol": "string",
+  "company_name": "string",
+  "industry": "string",
+  "sector": "string",
+  "exchange": "string",
+  "country": "string",
+  "currency": "string",
+  "market_cap": "number",
+  "description": "string",
+  "website": "string"
+}
+```
+
+#### **Options Collection**
+```json
+{
+  "_id": "ObjectId",
+  "underlying_symbol": "string",
+  "strike_price": "number",
+  "expiration_date": "datetime",
+  "option_type": "CALL|PUT",
+  "contract_size": "number",
+  "exchange": "string",
+  "currency": "string",
+  "description": "string"
+}
+```
+
+## 🔌 API Endpoints
+
+### **Portfolio Management**
+```
+GET    /portfolios/                    # List all portfolios
+GET    /portfolios/{name}/positions    # Get portfolio positions
+GET    /portfolios/{name}/performance  # Get portfolio performance
+POST   /portfolios/{name}/market-price/{symbol} # Update market price
+```
+
+### **Trade Management**
+```
+GET    /trades/                        # List all trades
+POST   /trades/                        # Create new trade
+GET    /trades/{id}                    # Get specific trade
+PUT    /trades/{id}                    # Update trade
+DELETE /trades/{id}                    # Delete trade
+```
+
+### **Static Data Management**
+```
+# Portfolios
+GET    /portfolio-static/              # List portfolio definitions
+POST   /portfolio-static/              # Create portfolio
+PUT    /portfolio-static/{id}          # Update portfolio
+DELETE /portfolio-static/{id}          # Delete portfolio
+
+# Stocks
+GET    /stocks/                        # List stock definitions
+POST   /stocks/                        # Create stock
+PUT    /stocks/{id}                    # Update stock
+DELETE /stocks/{id}                    # Delete stock
+
+# Options
+GET    /options/                       # List option definitions
+POST   /options/                       # Create option
+PUT    /options/{id}                   # Update option
+DELETE /options/{id}                   # Delete option
+```
+
+### **Market Data**
+```
+GET    /market-data/price/{symbol}     # Get current price
+GET    /market-data/prices             # Get multiple prices
+```
+
+## 🧮 P&L Calculation Logic
+
+### **Position Calculation**
+```python
+# Net Position = Total Bought - Total Sold
+net_quantity = total_quantity_bought - total_quantity_sold
+
+# Average Cost = (Total Cost Bought - Total Proceeds Sold) / Net Quantity
+average_cost = (total_cost_bought - total_proceeds_sold) / net_quantity
+
+# Market Value = Net Quantity × Current Market Price
+market_value = net_quantity × current_price
+
+# Unrealized P&L = Market Value - Net Cost
+unrealized_pl = market_value - net_cost
+
+# Inception P&L = Market Value + Proceeds from Sales - Total Cost
+inception_pl = market_value + total_proceeds - total_cost
+```
+
+### **Trade Impact**
+- **BUY**: Increases position, adds to cost basis
+- **SELL**: Decreases position, reduces cost basis
+- **Brokerage**: Included in cost calculations
+
+## 🛠️ Installation & Setup
+
+### **Prerequisites**
+- Python 3.9+
+- Node.js 16+
+- MongoDB 5.0+
+- Git
+
+### **Backend Setup**
+```bash
+cd backend
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+### **Frontend Setup**
+```bash
+cd frontend
+npm install
+```
+
+### **Environment Configuration**
+```bash
+# Copy example environment file
+cp backend/env_example backend/.env
+
+# Configure MongoDB connection
+MONGODB_URL=mongodb://localhost:27017
+DATABASE_NAME=investment_tracker
+```
+
+## 🚀 Running the System
+
+### **Start Backend**
+```bash
+cd backend
+python main.py
+# Server runs on http://localhost:8000
+```
+
+### **Start Frontend**
+```bash
+cd frontend
+npm start
+# App runs on http://localhost:3000
+```
+
+### **Access API Documentation**
+- **Swagger UI**: http://localhost:8000/docs
+- **ReDoc**: http://localhost:8000/redoc
+
+## 🔧 Development
+
+### **Project Structure**
 ```
 INVESTMENT/
-├── backend/          # Python FastAPI backend
-├── frontend/         # React frontend
-├── requirements.txt  # Python dependencies
-└── README.md
+├── backend/                    # Python FastAPI backend
+│   ├── routers/               # API route definitions
+│   ├── services/              # Business logic services
+│   ├── models.py              # Pydantic data models
+│   ├── database.py            # MongoDB connection
+│   └── main.py                # FastAPI application
+├── frontend/                   # React TypeScript frontend
+│   ├── src/
+│   │   ├── components/        # Reusable UI components
+│   │   ├── pages/             # Page components
+│   │   ├── services/          # API service layer
+│   │   └── types/             # TypeScript type definitions
+│   └── package.json
+└── README.md                   # This documentation
 ```
 
-## Setup Instructions
+### **Code Quality**
+- **Backend**: Type hints, async/await, error handling
+- **Frontend**: TypeScript, ESLint, Material-UI components
+- **API**: RESTful design, proper HTTP status codes
+- **Database**: Indexed queries, efficient aggregations
 
-### Environment Setup
-1. Create and activate virtual environment:
-   ```bash
-   python3 -m venv investment-env
-   source investment-env/bin/activate  # On Windows: investment-env\Scripts\activate
-   ```
-2. Install dependencies: `pip install -r requirements.txt`
+## 📈 Performance Features
 
-### Prerequisites
-- MongoDB running locally on default port (27017)
-- Node.js and npm installed
+### **Real-time Updates**
+- Live market data fetching
+- Automatic price updates
+- Responsive UI updates
 
-### Backend Setup
-1. Navigate to backend directory: `cd backend`
-2. Ensure virtual environment is activated: `source ../investment-env/bin/activate`
-3. Start the backend server: `uvicorn main:app --host 127.0.0.1 --port 8000 --reload`
-4. Verify backend is running: `curl http://127.0.0.1:8000/health`
+### **Data Optimization**
+- MongoDB aggregation pipelines
+- Efficient position calculations
+- Cached market data
 
-### Frontend Setup
-1. Navigate to frontend directory: `cd frontend`
-2. Install dependencies: `npm install`
-3. Start development server: `npm start`
-4. Access the application at: `http://localhost:3000`
+### **Scalability**
+- Async/await architecture
+- Connection pooling
+- Modular service design
 
-## API Endpoints
+## 🔒 Security & Data Integrity
 
-### Trades
-- `POST /trades/` - Create a new trade
-- `GET /trades/` - Get trades with optional filtering
-- `GET /trades/{trade_id}` - Get specific trade
-- `PUT /trades/{trade_id}` - Update trade
-- `DELETE /trades/{trade_id}` - Delete trade
-- `GET /trades/portfolio/{portfolio_name}/summary` - Get portfolio trade summary
+### **Input Validation**
+- Pydantic models for data validation
+- Frontend form validation
+- API parameter sanitization
 
-### Portfolios
-- `GET /portfolios/` - Get all portfolios
-- `GET /portfolios/{portfolio_name}/positions` - Get portfolio positions with MTM
-- `GET /portfolios/{portfolio_name}/performance` - Get portfolio performance metrics
-- `POST /portfolios/{portfolio_name}/market-price/{symbol}` - Update market price
+### **Error Handling**
+- Comprehensive error messages
+- Graceful fallbacks
+- Logging and monitoring
 
-### Snapshots
-- `POST /snapshots/create` - Create daily snapshots manually
-- `GET /snapshots/` - Get snapshots with filtering
-- `GET /snapshots/pl-analysis/{portfolio_name}` - Get DTD/MTD/YTD P&L analysis
+### **Data Consistency**
+- Transaction integrity
+- Referential integrity checks
+- Data validation rules
 
-## Database Schema
+## 🧪 Testing
 
-- **Trades**: Individual trade records with portfolio, symbol, quantity, price, brokerage
-- **Portfolios**: Portfolio configurations and metadata
-- **DailySnapshots**: Daily P&L snapshots for historical tracking
-- **MarketData**: Current market prices (cached for mark-to-market calculations)
+### **Backend Tests**
+```bash
+cd backend
+python -m pytest tests/
+```
 
-## Features Implemented
+### **Frontend Tests**
+```bash
+cd frontend
+npm test
+```
 
-✅ **Trade Entry**: Complete form with validation for all required fields
-✅ **Portfolio Dashboard**: Overview of all portfolios with basic statistics
-✅ **Portfolio View**: Detailed positions with mark-to-market values
-✅ **Mark-to-Market**: Real-time position values with unrealized P&L
-✅ **Manual Price Updates**: Ability to update market prices for symbols
-✅ **API Integration**: Full CRUD operations for trades and portfolios
-✅ **Modern UI**: Material-UI based responsive design
+## 📚 API Examples
 
-## Upcoming Features
+### **Create a Trade**
+```bash
+curl -X POST "http://localhost:8000/trades/" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "portfolio_name": "My Portfolio",
+    "symbol": "AAPL",
+    "instrument_type": "STOCK",
+    "quantity": 100,
+    "trade_type": "BUY",
+    "executed_price": 150.00,
+    "brokerage": 5.00
+  }'
+```
 
-🔄 **Daily Snapshots**: Automated daily P&L snapshots (manual creation available)
-🔄 **DTD/MTD/YTD P&L**: Historical P&L comparison (framework in place)
-⏳ **Real Market Data**: Integration with external market data providers
-⏳ **Advanced Analytics**: More detailed performance metrics and charts
+### **Get Portfolio Performance**
+```bash
+curl "http://localhost:8000/portfolios/My%20Portfolio/performance"
+```
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests if applicable
+5. Submit a pull request
+
+## 📄 License
+
+This project is licensed under the MIT License.
+
+## 🆘 Support
+
+For issues and questions:
+1. Check the API documentation at `/docs`
+2. Review the code examples
+3. Open an issue on GitHub
+
+---
+
+**Built with ❤️ using FastAPI, React, and MongoDB**

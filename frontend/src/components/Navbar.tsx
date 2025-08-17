@@ -16,6 +16,7 @@ import {
     Home as HomeIcon,
     Settings as SettingsIcon,
     ArrowDropDown as ArrowDropDownIcon,
+    Psychology as PsychologyIcon,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 
@@ -29,6 +30,7 @@ const Navbar: React.FC = () => {
         { label: 'Trade Management', path: '/trade-entry', icon: <AddCircleIcon /> },
         { label: 'Portfolio View', path: '/portfolio', icon: <AssessmentIcon /> },
         { label: 'Portfolio Analytics', path: '/portfolio-analytics', icon: <AssessmentIcon /> },
+        { label: 'AI Predictions', path: '/ai-predictions', icon: <PsychologyIcon /> },
     ];
 
     const settingsMenuItems = [

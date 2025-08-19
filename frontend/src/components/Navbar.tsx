@@ -28,15 +28,15 @@ const Navbar: React.FC = () => {
     const menuItems = [
         { label: 'Dashboard', path: '/', icon: <DashboardIcon /> },
         { label: 'Trade Management', path: '/trade-entry', icon: <AddCircleIcon /> },
-        { label: 'Portfolio View', path: '/portfolio', icon: <AssessmentIcon /> },
+        { label: 'Portfolio View', path: '/portfolio-view', icon: <AssessmentIcon /> },
         { label: 'Portfolio Analytics', path: '/portfolio-analytics', icon: <AssessmentIcon /> },
         { label: 'AI Predictions', path: '/ai-predictions', icon: <PsychologyIcon /> },
     ];
 
     const settingsMenuItems = [
-        { label: 'Portfolio Management', path: '/portfolios' },
-        { label: 'Stock Management', path: '/stocks' },
-        { label: 'Options Management', path: '/options' },
+        { label: 'Portfolio Management', path: '/portfolio-management' },
+        { label: 'Stock Management', path: '/stock-management' },
+        { label: 'Options Management', path: '/option-management' },
     ];
 
     const handleSettingsClick = (event: React.MouseEvent<HTMLButtonElement>) => {

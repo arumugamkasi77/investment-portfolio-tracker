@@ -11,7 +11,8 @@ from dotenv import load_dotenv
 import uvicorn
 
 from database import connect_to_mongo, close_mongo_connection
-from routers import trades, portfolios, snapshots, portfolio_static, stocks, options, market_data, enhanced_snapshots, scheduler, portfolio_analytics, ai_predictions
+from routers import trades, portfolios, snapshots, portfolio_static, stocks, options, market_data, enhanced_snapshots, scheduler, portfolio_analytics
+# from routers import ai_predictions  # Temporarily disabled to fix main app
 
 load_dotenv()
 
@@ -70,7 +71,7 @@ app.include_router(scheduler.router)
 app.include_router(portfolio_analytics.router)
 
 # Include AI predictions
-app.include_router(ai_predictions.router)
+# app.include_router(ai_predictions.router) # Temporarily disabled to fix main app
 
 @app.get("/")
 async def root():

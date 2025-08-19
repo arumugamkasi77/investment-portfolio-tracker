@@ -80,6 +80,30 @@ async def create_all_enhanced_snapshots(background_tasks: BackgroundTasks):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error starting snapshot creation: {str(e)}")
 
+@router.delete("/delete-date/{snapshot_date}")
+async def delete_snapshots_by_date(snapshot_date: str):
+    """
+    Delete all snapshots for a specific date.
+    Useful for cleaning up incorrect snapshots.
+    """
+    try:
+        # Parse the date
+        parsed_date = datetime.strptime(snapshot_date, "%Y-%m-%d").date()
+        
+        # Delete snapshots for this date
+        deleted_count = await enhanced_snapshots_service.delete_snapshots_by_date(parsed_date)
+        
+        return {
+            "message": f"Deleted {deleted_count} snapshots for {snapshot_date}",
+            "deleted_count": deleted_count,
+            "snapshot_date": snapshot_date,
+            "status": "success"
+        }
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error deleting snapshots: {str(e)}")
+
 @router.get("/dtd-mtd-ytd/{portfolio_name}")
 async def get_dtd_mtd_ytd_analysis(
     portfolio_name: str, 
@@ -263,3 +287,32 @@ async def test_pnl_calculation(portfolio_name: str):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error testing P&L calculation: {str(e)}")
+
+@router.get("/test-historical/{symbol}/{date}")
+async def test_historical_data(symbol: str, date: str):
+    """
+    Test endpoint to check if historical data fetching is working.
+    """
+    try:
+        from datetime import datetime
+        from services.enhanced_snapshots import enhanced_snapshots_service
+        
+        # Parse the date
+        parsed_date = datetime.strptime(date, "%Y-%m-%d").date()
+        
+        # Test historical data fetching
+        price = await enhanced_snapshots_service.fetch_historical_market_data(symbol, parsed_date)
+        
+        return {
+            "symbol": symbol,
+            "date": date,
+            "price": price,
+            "status": "success"
+        }
+    except Exception as e:
+        return {
+            "symbol": symbol,
+            "date": date,
+            "error": str(e),
+            "status": "error"
+        }

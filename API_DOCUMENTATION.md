@@ -86,9 +86,9 @@ GET /portfolios/{portfolio_name}/positions
       "unrealized_pl": 450.00,
       "unrealized_pl_percent": 3.09,
       "inception_pl": 450.00,
-      "dtd_pl": 0.0,
-      "mtd_pl": 0.0,
-      "ytd_pl": 0.0
+      "dtd_pl": 25.50,
+      "mtd_pl": 125.75,
+      "ytd_pl": 450.00
     }
   ],
   "message": "Portfolio positions retrieved successfully",
@@ -96,6 +96,8 @@ GET /portfolios/{portfolio_name}/positions
   "timestamp": "2025-08-16T10:30:00Z"
 }
 ```
+
+**Note:** ⭐ *UPDATED* - DTD/MTD/YTD P&L values are now calculated using NYSE calendar-aware logic and stored historical snapshots for accurate period-over-period analysis.
 
 ### **Get Portfolio Performance**
 ```http
@@ -499,6 +501,152 @@ PUT /options/{option_id}
 ```http
 DELETE /options/{option_id}
 ```
+
+## 📊 Enhanced P&L Analytics ⭐ *NEW*
+
+### **Create Historical Snapshot**
+```http
+POST /enhanced-snapshots/create?snapshot_date={date}
+```
+
+**Query Parameters:**
+- `snapshot_date` (optional): Date for historical snapshot (YYYY-MM-DD). Defaults to today.
+
+**Request Body:**
+```json
+{}
+```
+
+**Response:**
+```json
+{
+  "message": "Created 17 enhanced snapshots",
+  "portfolio_name": "all portfolios",
+  "snapshot_date": "2025-07-31",
+  "snapshots_created": 17,
+  "status": "success"
+}
+```
+
+**Description:** Creates P&L snapshots for all portfolios as of the specified date. Uses historical market data from Yahoo Finance for accurate historical calculations.
+
+### **Calculate DTD/MTD/YTD P&L** ⭐ *NEW*
+```http
+GET /enhanced-snapshots/dtd-mtd-ytd/{portfolio_name}
+```
+
+**Parameters:**
+- `portfolio_name` (path): Name of the portfolio
+
+**Response:**
+```json
+{
+  "data": [
+    {
+      "portfolio_name": "ARU_IB",
+      "symbol": "NVDA",
+      "current_inception_pl": 36347.0,
+      "dtd_pl": -2175.99,
+      "mtd_pl": 6052.0,
+      "ytd_pl": 36347.0,
+      "analysis_date": "2025-08-19",
+      "previous_trading_day": "2025-08-19",
+      "last_trading_day_of_previous_month": "2025-07-31",
+      "last_trading_day_of_previous_year": "2024-12-31",
+      "has_previous_trading_day_snapshot": false,
+      "has_last_working_day_snapshot": true,
+      "last_working_day": "2025-08-18",
+      "has_month_end_snapshot": true,
+      "has_year_end_snapshot": false
+    },
+    {
+      "portfolio_name": "ARU_IB",
+      "type": "portfolio_summary",
+      "current_total_pl": 62466.23,
+      "dtd_pl": -3373.06,
+      "mtd_pl": 14438.03,
+      "ytd_pl": 62466.23,
+      "previous_trading_day_total_pl": 65839.29,
+      "last_trading_day_of_previous_month_total_pl": 48028.2,
+      "last_trading_day_of_previous_year_total_pl": 0.0,
+      "analysis_date": "2025-08-19"
+    }
+  ],
+  "message": "DTD/MTD/YTD analysis for ARU_IB",
+  "status": "success",
+  "portfolio_name": "ARU_IB",
+  "analysis_date": "2025-08-19"
+}
+```
+
+**Description:** Calculates NYSE calendar-aware P&L metrics:
+- **DTD**: Today's P&L - Previous trading day's P&L
+- **MTD**: Today's P&L - Last month-end trading day's P&L
+- **YTD**: Today's P&L - Last year-end trading day's P&L
+
+### **Test Historical Market Data**
+```http
+GET /enhanced-snapshots/test-historical/{symbol}/{date}
+```
+
+**Parameters:**
+- `symbol` (path): Stock symbol
+- `date` (path): Date in YYYY-MM-DD format
+
+**Response:**
+```json
+{
+  "symbol": "AAPL",
+  "date": "2025-07-31",
+  "price": 213.80735778808594,
+  "status": "success"
+}
+```
+
+**Description:** Test endpoint to verify historical market data fetching from Yahoo Finance.
+
+### **Delete Snapshots by Date**
+```http
+DELETE /enhanced-snapshots/delete-date/{snapshot_date}
+```
+
+**Parameters:**
+- `snapshot_date` (path): Date in YYYY-MM-DD format
+
+**Response:**
+```json
+{
+  "message": "Deleted 17 snapshots for 2025-07-31",
+  "snapshot_date": "2025-07-31",
+  "deleted_count": 17,
+  "status": "success"
+}
+```
+
+**Description:** Deletes all snapshots for a specific date across all portfolios.
+
+### **Get Snapshot Status**
+```http
+GET /enhanced-snapshots/status/{portfolio_name}
+```
+
+**Parameters:**
+- `portfolio_name` (path): Name of the portfolio
+
+**Response:**
+```json
+{
+  "portfolio_name": "ARU_IB",
+  "has_snapshots": true,
+  "latest_snapshot": "2025-08-18",
+  "snapshot_count": 85,
+  "has_today_snapshot": false,
+  "has_yesterday_snapshot": true,
+  "last_updated": "2025-08-19T10:30:00Z"
+}
+```
+
+**Description:** Get status and metadata about existing snapshots for a portfolio.
 
 ## 📈 Market Data
 

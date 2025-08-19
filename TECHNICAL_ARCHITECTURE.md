@@ -132,6 +132,33 @@ The Investment Portfolio Tracker is a full-stack web application built with mode
 - `{ symbol: 1 }` - For price lookups
 - `{ last_updated: -1 }` - For data freshness
 
+#### **6. Daily Snapshots Collection** ⭐ *NEW*
+```javascript
+{
+  _id: ObjectId,
+  portfolio_name: String,      // Indexed
+  symbol: String,              // Indexed
+  instrument_type: String,     // "STOCK" | "OPTION"
+  snapshot_date: Date,         // Indexed - Date of the snapshot
+  position_quantity: Number,   // Net position quantity
+  average_cost: Number,        // Average cost per unit
+  current_price: Number,       // Market price as of snapshot date
+  market_value: Number,        // Total market value
+  total_cost: Number,          // Total cost basis
+  net_cost: Number,           // Net cost after sells
+  unrealized_pl: Number,       // Unrealized P&L
+  realized_pl: Number,         // Realized P&L from sales
+  inception_pl: Number,        // Total P&L since inception
+  created_at: Date,
+  updated_at: Date
+}
+```
+
+**Indexes:**
+- `{ portfolio_name: 1, symbol: 1, snapshot_date: -1 }` - Compound index for P&L queries
+- `{ snapshot_date: -1 }` - For date-based historical queries
+- `{ portfolio_name: 1, snapshot_date: -1 }` - For portfolio historical analysis
+
 ## 🔌 API Architecture
 
 ### **RESTful Design Principles**
@@ -163,7 +190,34 @@ The Investment Portfolio Tracker is a full-stack web application built with mode
 
 ## 🧮 Business Logic Architecture
 
-### **P&L Calculation Engine**
+### **Enhanced P&L Calculation Engine** ⭐ *UPDATED*
+
+#### **NYSE Calendar-Aware P&L Calculations**
+The system now supports sophisticated P&L calculations that are aware of NYSE trading calendar:
+
+- **DTD (Day-to-Date)**: Today's P&L - Previous trading day's P&L
+- **MTD (Month-to-Date)**: Today's P&L - Last month-end trading day's P&L  
+- **YTD (Year-to-Date)**: Today's P&L - Last year-end trading day's P&L
+
+#### **Historical Snapshot System**
+```python
+class EnhancedSnapshotsService:
+    async def create_simple_daily_snapshot(self, snapshot_date: date = None):
+        """Create historical P&L snapshots for any date"""
+        # Uses historical market data from Yahoo Finance
+        # Calculates positions as of the snapshot date
+        # Stores comprehensive P&L metrics
+        
+    def _get_previous_trading_day(self, target_date: date) -> date:
+        """NYSE calendar-aware previous trading day calculation"""
+        # Skips weekends and major US market holidays
+        
+    def _get_last_trading_day_of_previous_month(self, target_date: date) -> date:
+        """Last trading day of previous month (NYSE calendar)"""
+        
+    def _get_last_trading_day_of_previous_year(self, target_date: date) -> date:
+        """Last trading day of previous year (NYSE calendar)"""
+```
 
 #### **Position Aggregation Pipeline**
 ```python
@@ -286,17 +340,41 @@ class MarketDataService:
 
 ## 🎨 Frontend Architecture
 
-### **Component Hierarchy**
+### **Component Hierarchy** ⭐ *UPDATED*
 ```
 App
+├── AutoRefreshProvider (Context)
 ├── Navbar
 ├── Router
-    ├── Dashboard
-    ├── PortfolioView
+    ├── Dashboard (Enhanced with overall P&L)
+    ├── PortfolioView (Auto-refresh, smooth updates)
     ├── TradeEntry
-    ├── PortfolioManagement
+    ├── PortfolioManagement (Historical snapshots)
     ├── StockManagement
-    └── OptionManagement
+    ├── OptionManagement
+    └── AIPredictions (LSTM models - temporarily disabled)
+```
+
+#### **Auto-Refresh System** ⭐ *NEW*
+```typescript
+// Auto-refresh context for real-time updates
+const AutoRefreshContext = createContext<{
+  isEnabled: boolean;
+  intervalSeconds: number;
+  toggleAutoRefresh: () => void;
+  setIntervalSeconds: (seconds: number) => void;
+  updateLastRefreshTime: () => void;
+}>(...);
+
+// Auto-refresh control component
+const AutoRefreshControl: React.FC<{
+  onManualRefresh: () => void;
+  isRefreshing: boolean;
+  showLastRefreshTime?: boolean;
+}> = ({ onManualRefresh, isRefreshing, showLastRefreshTime = true }) => {
+  // Toggle auto-refresh, set intervals, manual refresh
+  // Optimized layout to prevent UI jumping
+};
 ```
 
 ### **State Management**
@@ -407,6 +485,50 @@ class ApiService {
 - **Trade Volume**: Trading activity monitoring
 - **User Activity**: Feature usage tracking
 
+## 🆕 Recent Enhancements (August 2025)
+
+### **Historical P&L Snapshots**
+- **Feature**: Create P&L snapshots for any historical date
+- **Technology**: MongoDB aggregation pipelines with historical Yahoo Finance data
+- **Use Case**: MTD/YTD calculations based on actual stored P&L values
+- **Key Files**: `backend/services/enhanced_snapshots.py`, `backend/routers/enhanced_snapshots.py`
+
+### **NYSE Calendar-Aware Calculations**
+- **Feature**: P&L calculations respect NYSE trading calendar
+- **Technology**: Custom date calculation functions with holiday handling
+- **Benefits**: Accurate DTD/MTD/YTD based on actual trading days
+- **Implementation**: `_get_previous_trading_day()`, `_get_last_trading_day_of_previous_month()`
+
+### **Real-Time Auto-Refresh System**
+- **Feature**: Auto-refresh Dashboard and Portfolio View with configurable intervals
+- **Technology**: React Context, setInterval, optimized DOM manipulation
+- **UX Enhancement**: Smooth updates without layout jumping
+- **Performance**: Direct DOM updates for P&L values to prevent React re-renders
+
+### **Enhanced Portfolio Analytics**
+- **Dashboard**: Overall DTD/MTD/YTD P&L across all portfolios
+- **Portfolio View**: Real-time P&L updates with historical context
+- **Data Sources**: Combined real-time market data with stored snapshots
+- **Visualization**: Color-coded P&L indicators with trend icons
+
+### **AI Predictions Module** (Temporarily Disabled)
+- **Feature**: LSTM-based stock price prediction models
+- **Technology**: TensorFlow/Keras, scikit-learn, yfinance
+- **Status**: Complete implementation but disabled due to training stability issues
+- **Future**: Model architecture needs optimization for production use
+
+### **Performance Optimizations**
+- **Database**: Optimized MongoDB queries with proper indexing
+- **Frontend**: React.memo, useCallback, useMemo for expensive operations
+- **API**: Efficient data merging and caching strategies
+- **Market Data**: Thread-pool execution for yfinance calls
+
+### **Error Handling & Resilience**
+- **Backend**: Comprehensive error handling with graceful fallbacks
+- **Frontend**: Loading states and error boundaries
+- **Data**: Fallback to average cost when historical prices unavailable
+- **API**: Proper HTTP status codes and error messages
+
 ---
 
-**This document provides a comprehensive technical overview of the Investment Portfolio Tracker system architecture.**
+**This document provides a comprehensive technical overview of the Investment Portfolio Tracker system architecture, including all recent enhancements and improvements implemented in August 2025.**

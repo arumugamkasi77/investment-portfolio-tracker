@@ -2,17 +2,16 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
-import Box from '@mui/material/Box';
-
 import Navbar from './components/Navbar';
 import Dashboard from './pages/Dashboard';
-import TradeEntry from './pages/TradeEntry';
-import PortfolioView from './pages/PortfolioView';
 import PortfolioManagement from './pages/PortfolioManagement';
+import PortfolioView from './pages/PortfolioView';
+import TradeEntry from './pages/TradeEntry';
 import StockManagement from './pages/StockManagement';
 import OptionManagement from './pages/OptionManagement';
 import PortfolioAnalytics from './pages/PortfolioAnalytics';
 import AIPredictions from './pages/AIPredictions';
+import { AutoRefreshProvider } from './contexts/AutoRefreshContext';
 
 const theme = createTheme({
   palette: {
@@ -23,17 +22,6 @@ const theme = createTheme({
     secondary: {
       main: '#dc004e',
     },
-    background: {
-      default: '#f5f5f5',
-    },
-  },
-  typography: {
-    h4: {
-      fontWeight: 600,
-    },
-    h5: {
-      fontWeight: 500,
-    },
   },
 });
 
@@ -41,23 +29,21 @@ function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <Router>
-        <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+      <AutoRefreshProvider>
+        <Router>
           <Navbar />
-          <Box component="main" sx={{ flexGrow: 1, p: 3 }}>
-            <Routes>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/trade-entry" element={<TradeEntry />} />
-              <Route path="/portfolio/:portfolioName?" element={<PortfolioView />} />
-              <Route path="/portfolios" element={<PortfolioManagement />} />
-              <Route path="/stocks" element={<StockManagement />} />
-              <Route path="/options" element={<OptionManagement />} />
-                                <Route path="/portfolio-analytics" element={<PortfolioAnalytics />} />
-                  <Route path="/ai-predictions" element={<AIPredictions />} />
-            </Routes>
-          </Box>
-        </Box>
-      </Router>
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/portfolio-management" element={<PortfolioManagement />} />
+            <Route path="/portfolio-view" element={<PortfolioView />} />
+            <Route path="/trade-entry" element={<TradeEntry />} />
+            <Route path="/stock-management" element={<StockManagement />} />
+            <Route path="/option-management" element={<OptionManagement />} />
+            <Route path="/portfolio-analytics" element={<PortfolioAnalytics />} />
+            <Route path="/ai-predictions" element={<AIPredictions />} />
+          </Routes>
+        </Router>
+      </AutoRefreshProvider>
     </ThemeProvider>
   );
 }

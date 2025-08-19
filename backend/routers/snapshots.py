@@ -178,7 +178,7 @@ async def create_daily_snapshot(portfolio_name: str = None, snapshot_date: date 
             existing_snapshot = await daily_snapshots_collection.find_one({
                 "portfolio_name": portfolio_name,
                 "symbol": symbol,
-                "snapshot_date": snapshot_date
+                "snapshot_date": datetime.combine(snapshot_date, datetime.min.time())
             })
             
             if not existing_snapshot:
@@ -186,7 +186,7 @@ async def create_daily_snapshot(portfolio_name: str = None, snapshot_date: date 
                 snapshot_data = {
                     "portfolio_name": portfolio_name,
                     "symbol": symbol,
-                    "snapshot_date": snapshot_date,
+                    "snapshot_date": datetime.combine(snapshot_date, datetime.min.time()),  # Convert date to datetime
                     "position_quantity": position["position_quantity"],
                     "average_cost": position["average_cost"],
                     "market_price": market_price,
@@ -243,12 +243,12 @@ async def get_snapshots(
         date_filter = {}
         if start_date:
             try:
-                date_filter["$gte"] = datetime.strptime(start_date, "%Y-%m-%d").date()
+                date_filter["$gte"] = datetime.combine(datetime.strptime(start_date, "%Y-%m-%d").date(), datetime.min.time())
             except ValueError:
                 raise HTTPException(status_code=400, detail="Invalid start_date format. Use YYYY-MM-DD")
         if end_date:
             try:
-                date_filter["$lte"] = datetime.strptime(end_date, "%Y-%m-%d").date()
+                date_filter["$lte"] = datetime.combine(datetime.strptime(end_date, "%Y-%m-%d").date(), datetime.min.time())
             except ValueError:
                 raise HTTPException(status_code=400, detail="Invalid end_date format. Use YYYY-MM-DD")
         filter_dict["snapshot_date"] = date_filter
@@ -285,19 +285,19 @@ async def get_pl_analysis(portfolio_name: str, symbol: Optional[str] = None):
         yesterday_snapshot = await daily_snapshots_collection.find_one({
             "portfolio_name": portfolio_name,
             "symbol": symbol,
-            "snapshot_date": yesterday
+            "snapshot_date": datetime.combine(yesterday, datetime.min.time())
         })
         
         month_start_snapshot = await daily_snapshots_collection.find_one({
             "portfolio_name": portfolio_name,
             "symbol": symbol,
-            "snapshot_date": month_start
+            "snapshot_date": datetime.combine(month_start, datetime.min.time())
         })
         
         year_start_snapshot = await daily_snapshots_collection.find_one({
             "portfolio_name": portfolio_name,
             "symbol": symbol,
-            "snapshot_date": year_start
+            "snapshot_date": datetime.combine(year_start, datetime.min.time())
         })
         
         # Calculate current total P&L (realized + unrealized)

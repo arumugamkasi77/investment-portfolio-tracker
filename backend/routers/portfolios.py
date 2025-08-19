@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from typing import List, Optional
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 import asyncio
 
 import sys
@@ -17,6 +17,50 @@ from database import (
 from services.market_data import market_data_service
 
 router = APIRouter(prefix="/portfolios", tags=["portfolios"])
+
+async def calculate_dtd_mtd_ytd_pl_for_symbol(portfolio_name: str, symbol: str, current_inception_pl: float) -> tuple[float, float, float]:
+    """
+    Calculate DTD, MTD, YTD P&L for a specific symbol using enhanced snapshots logic.
+    Returns (dtd_pl, mtd_pl, ytd_pl) tuple.
+    """
+    daily_snapshots_collection = get_daily_snapshots_collection()
+    
+    today = date.today()
+    yesterday = today - timedelta(days=1)
+    month_start = today.replace(day=1)
+    year_start = today.replace(month=1, day=1)
+    
+    # Convert to datetime for MongoDB queries
+    yesterday_datetime = datetime.combine(yesterday, datetime.min.time())
+    month_start_datetime = datetime.combine(month_start, datetime.min.time())
+    year_start_datetime = datetime.combine(year_start, datetime.min.time())
+    
+    # Get stored snapshots for comparison
+    yesterday_snapshot = await daily_snapshots_collection.find_one({
+        "portfolio_name": portfolio_name,
+        "symbol": symbol,
+        "snapshot_date": yesterday_datetime
+    })
+    
+    month_start_snapshot = await daily_snapshots_collection.find_one({
+        "portfolio_name": portfolio_name,
+        "symbol": symbol,
+        "snapshot_date": month_start_datetime
+    })
+    
+    year_start_snapshot = await daily_snapshots_collection.find_one({
+        "portfolio_name": portfolio_name,
+        "symbol": symbol,
+        "snapshot_date": year_start_datetime
+    })
+    
+    # Calculate DTD, MTD, YTD P&L
+    # If no snapshot exists, use 0 (as per your requirement)
+    dtd_pl = current_inception_pl - (yesterday_snapshot["inception_pl"] if yesterday_snapshot else 0.0)
+    mtd_pl = current_inception_pl - (month_start_snapshot["inception_pl"] if month_start_snapshot else 0.0)
+    ytd_pl = current_inception_pl - (year_start_snapshot["inception_pl"] if year_start_snapshot else 0.0)
+    
+    return dtd_pl, mtd_pl, ytd_pl
 
 def serialize_portfolio(portfolio) -> dict:
     """Convert MongoDB document to dict with string _id"""
@@ -160,6 +204,11 @@ async def get_portfolio_positions(portfolio_name: str):
         # Calculate inception P&L (current value + net proceeds from sales - total cost)
         inception_pl = market_value + position["total_proceeds"] - position["total_cost"]
         
+        # Calculate DTD, MTD, YTD P&L using enhanced snapshots logic
+        dtd_pl, mtd_pl, ytd_pl = await calculate_dtd_mtd_ytd_pl_for_symbol(
+            portfolio_name, symbol, inception_pl
+        )
+        
         position_summary = {
             "portfolio_name": portfolio_name,
             "symbol": symbol,
@@ -173,9 +222,9 @@ async def get_portfolio_positions(portfolio_name: str):
             "unrealized_pl": round(unrealized_pl, 2),
             "unrealized_pl_percent": round(unrealized_pl_percent, 2),
             "inception_pl": round(inception_pl, 2),
-            "dtd_pl": 0.0,  # Will be calculated later
-            "mtd_pl": 0.0,  # Will be calculated later
-            "ytd_pl": 0.0   # Will be calculated later
+            "dtd_pl": round(dtd_pl, 2),
+            "mtd_pl": round(mtd_pl, 2),
+            "ytd_pl": round(ytd_pl, 2)
         }
         
         result.append(position_summary)

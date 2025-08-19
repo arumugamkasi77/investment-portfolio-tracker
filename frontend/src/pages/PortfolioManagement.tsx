@@ -62,6 +62,9 @@ const PortfolioManagement: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [filterOwner, setFilterOwner] = useState<string>('');
 
+    // State for snapshot date
+    const [snapshotDate, setSnapshotDate] = useState<string>('');
+
     useEffect(() => {
         loadPortfolios();
     }, []);
@@ -144,6 +147,40 @@ const PortfolioManagement: React.FC = () => {
         setError(null);
     };
 
+    const handleCreateSnapshot = async () => {
+        setSubmitLoading(true);
+        setError(null);
+        setSuccess(null);
+
+        try {
+            // Use selected date if provided, otherwise use today
+            const dateParam = snapshotDate ? `?snapshot_date=${snapshotDate}` : '';
+            const response = await fetch(`http://localhost:8000/enhanced-snapshots/create${dateParam}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.detail || 'Failed to create daily snapshot');
+            }
+
+            const result = await response.json();
+            const dateText = snapshotDate ? ` for ${snapshotDate}` : ' for today';
+            setSuccess(`Daily snapshot created successfully${dateText}! ${result.message}`);
+
+            // Clear the date after successful creation
+            setSnapshotDate('');
+        } catch (err: any) {
+            console.error('Error creating daily snapshot:', err);
+            setError(err.message || 'Failed to create daily snapshot');
+        } finally {
+            setSubmitLoading(false);
+        }
+    };
+
     const handleInputChange = (field: keyof PortfolioStatic, value: string) => {
         setFormData(prev => ({
             ...prev,
@@ -169,13 +206,32 @@ const PortfolioManagement: React.FC = () => {
                 <Typography variant="h4" component="h1">
                     Portfolio Management
                 </Typography>
-                <Button
-                    variant="contained"
-                    startIcon={<AddIcon />}
-                    onClick={handleOpenDialog}
-                >
-                    Add Portfolio
-                </Button>
+                <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                    <TextField
+                        type="date"
+                        label="Snapshot Date"
+                        value={snapshotDate}
+                        onChange={(e) => setSnapshotDate(e.target.value)}
+                        InputLabelProps={{ shrink: true }}
+                        size="small"
+                        sx={{ minWidth: 200 }}
+                    />
+                    <Button
+                        variant="outlined"
+                        color="secondary"
+                        onClick={handleCreateSnapshot}
+                        disabled={submitLoading}
+                    >
+                        Create Daily Snapshot
+                    </Button>
+                    <Button
+                        variant="contained"
+                        startIcon={<AddIcon />}
+                        onClick={handleOpenDialog}
+                    >
+                        Add Portfolio
+                    </Button>
+                </Box>
             </Box>
 
             {error && (

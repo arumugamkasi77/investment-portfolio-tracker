@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 import asyncio
-from services.ai_predictions import ai_predictor
+from services.ai_predictions import StockPricePredictor
 import logging
 
 # Configure logging
@@ -10,11 +10,14 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/ai-predictions", tags=["AI Predictions"])
 
+# Create service instance
+ai_predictor = StockPricePredictor()
+
 # Pydantic models for request/response
 class TrainModelRequest(BaseModel):
     symbol: str
     lookback_days: Optional[int] = 60
-    epochs: Optional[int] = 100
+    epochs: Optional[int] = 30  # Reduced from 100 to 30 to prevent hanging
 
 class PredictionRequest(BaseModel):
     symbol: str
@@ -76,13 +79,7 @@ async def get_training_status(symbol: str):
                 "message": f"No trained model found for {symbol}"
             }
         
-        return {
-            "symbol": symbol,
-            "status": "trained",
-            "last_training": status.get("last_training"),
-            "validation_metrics": status.get("validation_metrics", {}),
-            "training_history": status.get("training_history", {})
-        }
+        return status
         
     except Exception as e:
         logger.error(f"Error getting training status for {symbol}: {str(e)}")
@@ -172,16 +169,18 @@ async def get_portfolio_symbols(request: PortfolioSymbolsRequest):
     """
     try:
         # Import existing portfolio service to get symbols
-        from routers.portfolios import get_portfolio_positions
+        from services.enhanced_snapshots import EnhancedSnapshotsService
         
-        positions = await get_portfolio_positions(request.portfolio_name)
+        enhanced_service = EnhancedSnapshotsService()
+        positions = await enhanced_service.get_portfolio_positions_simple(request.portfolio_name)
         
-        if "error" in positions:
+        # Check if positions is a list (success) or dict with error
+        if isinstance(positions, dict) and "error" in positions:
             raise HTTPException(status_code=400, detail=positions["error"])
         
         # Extract stock symbols (exclude cash)
         stock_symbols = [
-            pos["symbol"] for pos in positions.get("positions", [])
+            pos["symbol"] for pos in positions
             if pos["symbol"] != "CASH_USD"
         ]
         
@@ -205,15 +204,17 @@ async def bulk_train_portfolio_models(request: PortfolioSymbolsRequest, backgrou
     """
     try:
         # Get portfolio symbols
-        from routers.portfolios import get_portfolio_positions
+        from services.enhanced_snapshots import EnhancedSnapshotsService
         
-        positions = await get_portfolio_positions(request.portfolio_name)
+        enhanced_service = EnhancedSnapshotsService()
+        positions = await enhanced_service.get_portfolio_positions_simple(request.portfolio_name)
         
-        if "error" in positions:
+        # Check if positions is a list (success) or dict with error
+        if isinstance(positions, dict) and "error" in positions:
             raise HTTPException(status_code=400, detail=positions["error"])
         
         stock_symbols = [
-            pos["symbol"] for pos in positions.get("positions", [])
+            pos["symbol"] for pos in positions
             if pos["symbol"] != "CASH_USD"
         ]
         
@@ -293,3 +294,13 @@ async def get_ai_predictions_help():
             "Use confidence intervals to understand prediction uncertainty"
         ]
     }
+
+@router.get("/models/insights/{symbol}")
+async def get_model_insights(symbol: str):
+    """Get comprehensive insights about a trained model"""
+    try:
+        insights = await ai_predictor.get_model_insights(symbol)
+        return insights
+    except Exception as e:
+        logger.error(f"Error getting model insights for {symbol}: {str(e)}")
+        return {"error": f"Failed to get model insights: {str(e)}"}

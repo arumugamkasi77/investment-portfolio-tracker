@@ -209,10 +209,16 @@ class EnhancedSnapshotsService:
         """
         from datetime import timedelta
         
+        print(f"🔧 DEBUG: _get_previous_trading_day called with target_date: {target_date}")
+        
+        # Start with the day BEFORE the target date
+        current_date = target_date - timedelta(days=1)
+        print(f"🔧 DEBUG: After subtracting 1 day: {current_date}")
+        
         # Simple weekend skipping (Saturday=5, Sunday=6)
-        current_date = target_date
         while current_date.weekday() >= 5:  # Saturday or Sunday
             current_date -= timedelta(days=1)
+            print(f"🔧 DEBUG: Skipped weekend, now: {current_date}")
         
         # Skip major US market holidays (simplified list)
         # In production, you'd want to use a proper holiday calendar library
@@ -231,10 +237,13 @@ class EnhancedSnapshotsService:
         
         while current_date in holidays_2025:
             current_date -= timedelta(days=1)
+            print(f"🔧 DEBUG: Skipped holiday, now: {current_date}")
             # Also skip weekends when going back
             while current_date.weekday() >= 5:
                 current_date -= timedelta(days=1)
+                print(f"🔧 DEBUG: Skipped weekend after holiday, now: {current_date}")
         
+        print(f"🔧 DEBUG: Final result: {current_date}")
         return current_date
 
     def _get_last_trading_day_of_previous_month(self, target_date: date) -> date:
@@ -390,11 +399,26 @@ class EnhancedSnapshotsService:
                     if hist_data.empty:
                         return None
                     
-                    # Get the first available price in the range (simplest approach)
-                    first_date = hist_data.index[0]
-                    closing_price = hist_data.loc[first_date, 'Close']
+                    # Find the closest available date to the target date
+                    # Convert target_date to timezone-naive datetime for comparison
+                    target_datetime = pd.Timestamp(target_date).tz_localize(None)
+                    closest_date = None
+                    min_difference = float('inf')
                     
-                    return float(closing_price)
+                    for date_idx in hist_data.index:
+                        # Convert yfinance date to timezone-naive for comparison
+                        date_idx_naive = date_idx.tz_localize(None) if date_idx.tz is not None else date_idx
+                        difference = abs((date_idx_naive - target_datetime).days)
+                        if difference < min_difference:
+                            min_difference = difference
+                            closest_date = date_idx
+                    
+                    if closest_date is not None:
+                        closing_price = hist_data.loc[closest_date, 'Close']
+                        print(f"🔍 DEBUG: Historical price for {symbol} on {target_date}: closest available date {closest_date.date()} = ${closing_price}")
+                        return float(closing_price)
+                    else:
+                        return None
                     
                 except Exception as e:
                     print(f"Error in historical data fetch for {symbol}: {e}")
@@ -535,6 +559,11 @@ class EnhancedSnapshotsService:
         last_trading_day_of_previous_month_datetime = datetime.combine(last_trading_day_of_previous_month, datetime.min.time())
         last_trading_day_of_previous_year_datetime = datetime.combine(last_trading_day_of_previous_year, datetime.min.time())
         
+        print(f"DEBUG: Today: {today} -> {today_datetime}")
+        print(f"DEBUG: Previous trading day: {previous_trading_day} -> {previous_trading_day_datetime}")
+        print(f"DEBUG: Last month end: {last_trading_day_of_previous_month} -> {last_trading_day_of_previous_month_datetime}")
+        print(f"DEBUG: Last year end: {last_trading_day_of_previous_year} -> {last_trading_day_of_previous_year_datetime}")
+        
         # Get current positions using existing logic (today's data)
         current_positions = await self.get_portfolio_positions_simple(portfolio_name)
         
@@ -567,6 +596,7 @@ class EnhancedSnapshotsService:
             
             # Fallback: if no snapshot for exact previous trading day, find most recent before today
             if not previous_trading_day_snapshot:
+                print(f"DEBUG: No exact match for {current_symbol} on {previous_trading_day_datetime}, using fallback")
                 last_working_day_snapshot = await daily_snapshots_collection.find_one(
                     {
                         "portfolio_name": portfolio_name,
@@ -575,7 +605,12 @@ class EnhancedSnapshotsService:
                     },
                     sort=[("snapshot_date", -1)]  # Get most recent
                 )
+                if last_working_day_snapshot:
+                    print(f"DEBUG: Found fallback snapshot for {current_symbol} on {last_working_day_snapshot['snapshot_date']}")
+                else:
+                    print(f"DEBUG: No fallback snapshot found for {current_symbol}")
             else:
+                print(f"DEBUG: Found exact snapshot for {current_symbol} on {previous_trading_day_datetime}")
                 last_working_day_snapshot = previous_trading_day_snapshot
             
             # Find month-end snapshot (last trading day of previous month)

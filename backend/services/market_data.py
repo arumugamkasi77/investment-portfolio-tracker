@@ -11,7 +11,7 @@ class MarketDataService:
     def __init__(self):
         self.alpha_vantage_key = os.getenv("ALPHA_VANTAGE_API_KEY")
         self.cache = {}
-        self.cache_duration = timedelta(minutes=5)  # Cache for 5 minutes
+        self.cache_duration = timedelta(seconds=3)  # Cache for 3 seconds so auto-refresh every 5 seconds gets fresh data
     
     def _is_cache_valid(self, symbol: str) -> bool:
         """Check if cached data is still valid"""
@@ -24,12 +24,12 @@ class MarketDataService:
             
         return datetime.now() - cached_time < self.cache_duration
     
-    async def get_stock_price(self, symbol: str) -> Optional[Dict]:
+    async def get_stock_price(self, symbol: str, force_refresh: bool = False) -> Optional[Dict]:
         """Get current stock price using Yahoo Finance with proper caching"""
         symbol = symbol.upper()
         
-        # Check cache first
-        if self._is_cache_valid(symbol):
+        # Check cache first (unless force refresh is requested)
+        if not force_refresh and self._is_cache_valid(symbol):
             return self.cache[symbol]['data']
         
         # Handle CASH_USD specially - always return 1.0
@@ -67,23 +67,130 @@ class MarketDataService:
             self._cache_data(symbol, price_data)
             return price_data
         
+        # If all methods fail, log the error and return None
+        print(f"WARNING: All market data methods failed for {symbol}. Using fallback price.")
         return None
     
+    async def get_stock_price_fresh(self, symbol: str) -> Optional[Dict]:
+        """Get current stock price with force refresh (bypasses cache) - for auto-refresh scenarios"""
+        return await self.get_stock_price(symbol, force_refresh=True)
+    
+    async def get_best_available_price(self, symbol: str) -> Optional[Dict]:
+        """Get the best available price prioritizing extended hours data"""
+        symbol = symbol.upper()
+        
+        # Handle CASH_USD specially
+        if symbol == "CASH_USD":
+            return {
+                'symbol': 'CASH_USD',
+                'price': 1.0,
+                'change': 0.0,
+                'change_percent': '0.00',
+                'volume': 0,
+                'last_updated': datetime.now().strftime('%Y-%m-%d'),
+                'source': 'Cash Position (Fixed Value)',
+                'currency': 'USD',
+                'price_type': 'cash'
+            }
+        
+        # Try to get fresh data with extended hours priority
+        try:
+            price_data = await self._get_yahoo_finance_price(symbol)
+            if price_data:
+                return price_data
+        except Exception as e:
+            print(f"Error fetching extended hours data for {symbol}: {e}")
+        
+        # Fallback to regular method
+        return await self.get_stock_price(symbol, force_refresh=True)
+    
     async def get_multiple_prices(self, symbols: List[str]) -> Dict[str, Optional[Dict]]:
-        """Get prices for multiple symbols concurrently"""
-        tasks = []
-        for symbol in symbols:
-            task = asyncio.create_task(self.get_stock_price(symbol))
-            tasks.append((symbol, task))
-        
+        """Get prices for multiple symbols concurrently - FIXED to avoid race conditions"""
         results = {}
-        for symbol, task in tasks:
-            try:
-                results[symbol] = await task
-            except Exception as e:
-                print(f"Error fetching price for {symbol}: {e}")
-                results[symbol] = None
         
+        # Handle CASH_USD specially
+        if "CASH_USD" in symbols:
+            results["CASH_USD"] = {
+                'symbol': 'CASH_USD',
+                'price': 1.0,
+                'change': 0.0,
+                'change_percent': '0.00',
+                'volume': 0,
+                'last_updated': datetime.now().strftime('%Y-%m-%d'),
+                'source': 'Cash Position (Fixed Value)',
+                'currency': 'USD',
+                'price_type': 'cash'
+            }
+            symbols = [s for s in symbols if s != "CASH_USD"]
+        
+        # Batch fetch all other symbols using yfinance directly to avoid race conditions
+        if symbols:
+            try:
+                loop = asyncio.get_event_loop()
+                
+                def batch_fetch_prices():
+                    import yfinance as yf
+                    batch_results = {}
+                    
+                    for symbol in symbols:
+                        try:
+                            ticker = yf.Ticker(symbol)
+                            info = ticker.info
+                            
+                            if info and 'regularMarketPrice' in info and info['regularMarketPrice']:
+                                # Priority order: Pre-market > Post-market > Regular market
+                                current_price = None
+                                price_source = "Regular Market"
+                                
+                                # Check for pre-market price
+                                if 'preMarketPrice' in info and info['preMarketPrice'] and info['preMarketPrice'] > 0:
+                                    current_price = float(info['preMarketPrice'])
+                                    price_source = "Pre-Market"
+                                # Check for post-market price
+                                elif 'postMarketPrice' in info and info['postMarketPrice'] and info['postMarketPrice'] > 0:
+                                    current_price = float(info['postMarketPrice'])
+                                    price_source = "Post-Market"
+                                # Use regular market price
+                                else:
+                                    current_price = float(info['regularMarketPrice'])
+                                    price_source = "Regular Market"
+                                
+                                previous_close = float(info.get('previousClose', current_price))
+                                change = current_price - previous_close
+                                change_percent = (change / previous_close * 100) if previous_close else 0
+                                
+                                batch_results[symbol] = {
+                                    'symbol': symbol,
+                                    'price': current_price,
+                                    'change': change,
+                                    'change_percent': f"{change_percent:.2f}",
+                                    'volume': int(info.get('volume', 0)),
+                                    'last_updated': datetime.now().strftime('%Y-%m-%d'),
+                                    'source': f'Yahoo Finance ({price_source})',
+                                    'currency': 'USD',
+                                    'price_type': price_source.lower().replace('-', '_')
+                                }
+                            else:
+                                batch_results[symbol] = None
+                                
+                        except Exception as e:
+                            print(f"Error fetching price for {symbol} in batch: {e}")
+                            batch_results[symbol] = None
+                    
+                    return batch_results
+                
+                # Execute batch fetch in thread pool
+                batch_results = await loop.run_in_executor(None, batch_fetch_prices)
+                results.update(batch_results)
+                
+            except Exception as e:
+                print(f"Error in batch price fetch: {e}")
+                # Fallback: set None for failed symbols
+                for symbol in symbols:
+                    if symbol not in results:
+                        results[symbol] = None
+        
+        print(f"🔧 DEBUG: Batch fetch completed for {len(symbols)} symbols: {list(results.keys())}")
         return results
     
     async def _get_alpha_vantage_price(self, symbol: str) -> Optional[Dict]:
@@ -118,7 +225,7 @@ class MarketDataService:
         return None
     
     async def _get_yahoo_finance_price(self, symbol: str) -> Optional[Dict]:
-        """Fetch price from Yahoo Finance using yfinance library with proper caching"""
+        """Fetch price from Yahoo Finance using yfinance library with extended hours priority"""
         try:
             # Run yfinance in thread pool to avoid blocking
             loop = asyncio.get_event_loop()
@@ -129,7 +236,23 @@ class MarketDataService:
                 info = ticker.info
                 
                 if info and 'regularMarketPrice' in info and info['regularMarketPrice']:
-                    current_price = float(info['regularMarketPrice'])
+                    # Priority order: Pre-market > Post-market > Regular market > Previous close
+                    current_price = None
+                    price_source = "Regular Market"
+                    
+                    # Check for pre-market price (4:00 AM - 9:30 AM ET)
+                    if 'preMarketPrice' in info and info['preMarketPrice'] and info['preMarketPrice'] > 0:
+                        current_price = float(info['preMarketPrice'])
+                        price_source = "Pre-Market"
+                    # Check for post-market price (4:00 PM - 8:00 PM ET)
+                    elif 'postMarketPrice' in info and info['postMarketPrice'] and info['postMarketPrice'] > 0:
+                        current_price = float(info['postMarketPrice'])
+                        price_source = "Post-Market"
+                    # Use regular market price
+                    else:
+                        current_price = float(info['regularMarketPrice'])
+                        price_source = "Regular Market"
+                    
                     previous_close = float(info.get('previousClose', current_price))
                     
                     change = current_price - previous_close
@@ -142,8 +265,9 @@ class MarketDataService:
                         'change_percent': f"{change_percent:.2f}",
                         'volume': int(info.get('volume', 0)),
                         'last_updated': datetime.now().strftime('%Y-%m-%d'),
-                        'source': 'Yahoo Finance',
-                        'currency': 'USD'
+                        'source': f'Yahoo Finance ({price_source})',
+                        'currency': 'USD',
+                        'price_type': price_source.lower().replace('-', '_')  # pre_market, post_market, regular_market
                     }
                 return None
             
@@ -151,6 +275,9 @@ class MarketDataService:
             
         except Exception as e:
             print(f"Yahoo Finance error for {symbol}: {e}")
+            print(f"Error type: {type(e).__name__}")
+            import traceback
+            print(f"Traceback: {traceback.format_exc()}")
         
         return None
     

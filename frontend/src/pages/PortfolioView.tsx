@@ -97,9 +97,10 @@ const PLValueCell = React.memo(({ value, label, rowIndex, columnIndex }: {
 PLValueCell.displayName = 'PLValueCell';
 
 // Memoized position row component to prevent unnecessary re-renders
-const PositionRow = React.memo(({ position, onEditPrice }: {
+const PositionRow = React.memo(({ position, onEditPrice, rowIndex }: {
     position: any;
     onEditPrice: (symbol: string, currentPrice: number) => void;
+    rowIndex: number;
 }) => {
     const formatCurrency = (value: number): string => {
         if (value === null || value === undefined || isNaN(value)) return '$0.00';
@@ -134,12 +135,27 @@ const PositionRow = React.memo(({ position, onEditPrice }: {
                 </Typography>
             </TableCell>
             <TableCell align="right" sx={{ minWidth: '100px', height: '60px', verticalAlign: 'middle' }}>
-                <Typography variant="body2">
-                    {formatCurrency(position.current_price)}
-                </Typography>
+                <Box>
+                    <Typography variant="body2" id={`current-price-${rowIndex}`}>
+                        {formatCurrency(position.current_price)}
+                    </Typography>
+                    {position.price_type && position.price_type !== 'regular_market' && (
+                        <Chip
+                            label={position.price_type.replace('_', ' ').toUpperCase()}
+                            size="small"
+                            color={position.price_type === 'pre_market' ? 'warning' : 'info'}
+                            sx={{
+                                fontSize: '0.6rem',
+                                height: '16px',
+                                mt: 0.5,
+                                '& .MuiChip-label': { px: 0.5 }
+                            }}
+                        />
+                    )}
+                </Box>
             </TableCell>
             <TableCell align="right" sx={{ minWidth: '120px', height: '60px', verticalAlign: 'middle' }}>
-                <Typography variant="body2">
+                <Typography variant="body2" id={`market-value-${rowIndex}`}>
                     {formatCurrency(position.market_value)}
                 </Typography>
             </TableCell>
@@ -183,6 +199,11 @@ const PortfolioView: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [portfolioSummary, setPortfolioSummary] = useState<any>(null);
+    const [portfolioTotals, setPortfolioTotals] = useState<any>({
+        marketValue: 0,
+        totalCost: 0,
+        totalPL: 0
+    });
     const { isEnabled, intervalSeconds, updateLastRefreshTime } = useAutoRefresh();
     const [isRefreshing, setIsRefreshing] = useState(false); // Separate state for smooth updates
     const [priceDialog, setPriceDialog] = useState({
@@ -214,6 +235,69 @@ const PortfolioView: React.FC = () => {
         }
     }, []);
 
+    // Function to update market data fields during silent refresh
+    const updateMarketDataInDOM = useCallback((rowIndex: number, position: any) => {
+        console.log(`🔄 DEBUG: updateMarketDataInDOM called for row ${rowIndex}, symbol ${position.symbol}`);
+
+        const formatCurrency = (value: number): string => {
+            if (value === null || value === undefined || isNaN(value)) return '$0.00';
+            return new Intl.NumberFormat('en-US', {
+                style: 'currency',
+                currency: 'USD',
+            }).format(value);
+        };
+
+        // Update Current Price
+        const currentPriceElement = document.getElementById(`current-price-${rowIndex}`);
+        if (currentPriceElement) {
+            console.log(`✅ DEBUG: Updating current price for ${position.symbol} to ${formatCurrency(position.current_price)}`);
+            currentPriceElement.textContent = formatCurrency(position.current_price);
+        } else {
+            console.log(`❌ DEBUG: Could not find current-price-${rowIndex} element for ${position.symbol}`);
+        }
+
+        // Update Market Value
+        const marketValueElement = document.getElementById(`market-value-${rowIndex}`);
+        if (marketValueElement) {
+            console.log(`✅ DEBUG: Updating market value for ${position.symbol} to ${formatCurrency(position.market_value)}`);
+            marketValueElement.textContent = formatCurrency(position.market_value);
+        } else {
+            console.log(`❌ DEBUG: Could not find market-value-${rowIndex} element for ${position.symbol}`);
+        }
+
+        // Update Inception P&L (column 0)
+        updatePLValueInDOM(rowIndex, 0, position.inception_pl);
+    }, [updatePLValueInDOM]);
+
+    // Function to update portfolio totals during silent refresh
+    const updatePortfolioTotalsInDOM = useCallback((totals: any) => {
+        const formatCurrency = (value: number): string => {
+            if (value === null || value === undefined || isNaN(value)) return '$0.00';
+            return new Intl.NumberFormat('en-US', {
+                style: 'currency',
+                currency: 'USD',
+            }).format(value);
+        };
+
+        // Update Total Market Value
+        const marketValueElement = document.getElementById('total-market-value');
+        if (marketValueElement) {
+            marketValueElement.textContent = formatCurrency(totals.marketValue);
+        }
+
+        // Update Total Cost
+        const totalCostElement = document.getElementById('total-cost');
+        if (totalCostElement) {
+            totalCostElement.textContent = formatCurrency(totals.totalCost);
+        }
+
+        // Update Total P&L
+        const totalPLElement = document.getElementById('total-pl');
+        if (totalPLElement) {
+            totalPLElement.textContent = formatCurrency(totals.totalPL);
+        }
+    }, []);
+
     useEffect(() => {
         loadPortfolios();
     }, []);
@@ -229,61 +313,77 @@ const PortfolioView: React.FC = () => {
             }
             setError(null);
 
-            // Get both regular portfolio positions and enhanced P&L data
-            const [positionsResponse, enhancedResponse] = await Promise.all([
-                portfolioApi.getPortfolioPositions(selectedPortfolio),
-                fetch(`http://localhost:8000/enhanced-snapshots/dtd-mtd-ytd/${selectedPortfolio}`)
-            ]);
+            // Use single consolidated endpoint to eliminate race conditions
+            const url = isSilentRefresh
+                ? `http://localhost:8000/portfolios/${selectedPortfolio}/positions-with-analysis?force_fresh=true`
+                : `http://localhost:8000/portfolios/${selectedPortfolio}/positions-with-analysis`;
 
-            if (!enhancedResponse.ok) {
-                throw new Error('Failed to fetch enhanced portfolio data');
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error('Failed to fetch portfolio with analysis');
             }
 
-            const regularPositions = positionsResponse.data;
-            const enhancedData = await enhancedResponse.json();
+            const data = await response.json();
 
-            // Extract portfolio summary (overall totals)
-            const summary = enhancedData.data.find((item: any) => item.type === 'portfolio_summary');
-            setPortfolioSummary(summary);
-
-            // Create a map of enhanced P&L data by symbol (excluding summary)
-            const enhancedPLMap = new Map();
-            enhancedData.data.forEach((item: any) => {
-                if (item.type !== 'portfolio_summary') {
-                    enhancedPLMap.set(item.symbol, {
-                        dtd_pl: item.dtd_pl,
-                        mtd_pl: item.mtd_pl,
-                        ytd_pl: item.ytd_pl
-                    });
-                }
-            });
-
-            // Merge regular positions with enhanced P&L data
-            const mergedPositions = regularPositions.map((position: any) => {
-                const enhancedPL = enhancedPLMap.get(position.symbol) || {
-                    dtd_pl: 0,
-                    mtd_pl: 0,
-                    ytd_pl: 0
+            // Extract positions and portfolio totals from single response
+            const mergedPositions = data.positions;
+            if (data.portfolio_totals) {
+                // Map the new consolidated endpoint structure to the expected format
+                const mappedSummary = {
+                    current_total_pl: data.portfolio_totals.total_inception_pl,
+                    dtd_pl: data.portfolio_totals.total_dtd_pl,
+                    mtd_pl: data.portfolio_totals.total_mtd_pl,
+                    ytd_pl: data.portfolio_totals.total_ytd_pl,
+                    last_working_day_total_pl: data.portfolio_totals.total_inception_pl - data.portfolio_totals.total_dtd_pl,
+                    month_start_total_pl: data.portfolio_totals.total_inception_pl - data.portfolio_totals.total_mtd_pl,
+                    year_start_total_pl: data.portfolio_totals.total_inception_pl - data.portfolio_totals.total_ytd_pl,
+                    analysis_date: data.analysis_date
                 };
+                setPortfolioSummary(mappedSummary);
 
-                return {
-                    ...position, // Keep all the original fields (quantity, cost, price, market value, etc.)
-                    dtd_pl: enhancedPL.dtd_pl,
-                    mtd_pl: enhancedPL.mtd_pl,
-                    ytd_pl: enhancedPL.ytd_pl
-                };
-            });
+                // Also set portfolio totals for the fallback display
+                setPortfolioTotals({
+                    marketValue: data.portfolio_totals.total_market_value,
+                    totalCost: data.portfolio_totals.total_cost,
+                    totalPL: data.portfolio_totals.total_unrealized_pl
+                });
+            }
 
             if (isSilentRefresh) {
-                // For silent refresh, update values directly in DOM without React re-renders
-                mergedPositions.forEach((position, rowIndex) => {
-                    // Update DTD P&L (column 1)
-                    updatePLValueInDOM(rowIndex, 1, position.dtd_pl);
-                    // Update MTD P&L (column 2)
-                    updatePLValueInDOM(rowIndex, 2, position.mtd_pl);
-                    // Update YTD P&L (column 3)
-                    updatePLValueInDOM(rowIndex, 3, position.ytd_pl);
+                // PROFESSIONAL BEHAVIOR: Only update when we have fresh, valid market data
+                // No loading indicators - keep previous values if new data isn't ready
+
+                // PROFESSIONAL AUTO-REFRESH: Only update when we have valid, fresh market data
+                mergedPositions.forEach((position: any, rowIndex: number) => {
+                    // Only update if we have valid market data (not fallback prices)
+                    if (position.current_price && position.current_price > 0 && position.current_price !== position.average_cost) {
+                        // Get current displayed price to compare
+                        const currentPriceElement = document.getElementById(`current-price-${rowIndex}`);
+                        const currentDisplayedPrice = currentPriceElement && currentPriceElement.textContent ? parseFloat(currentPriceElement.textContent.replace(/[$,]/g, '')) : null;
+
+                        // Only update if price has actually changed significantly
+                        if (currentDisplayedPrice === null || Math.abs(position.current_price - currentDisplayedPrice) > 0.01) {
+                            // Update market data (current price, market value, inception P&L)
+                            updateMarketDataInDOM(rowIndex, position);
+                            // Update P&L values
+                            updatePLValueInDOM(rowIndex, 1, position.dtd_pl);
+                            updatePLValueInDOM(rowIndex, 2, position.mtd_pl);
+                            updatePLValueInDOM(rowIndex, 3, position.ytd_pl);
+                        }
+                    }
+                    // If no valid data, keep the previous value (professional behavior)
                 });
+
+                // Update portfolio totals with valid data
+                const validPositions = mergedPositions.filter((pos: any) => pos.current_price && pos.current_price > 0);
+                if (validPositions.length > 0) {
+                    const totals = {
+                        marketValue: validPositions.reduce((sum: number, pos: any) => sum + (pos.market_value || 0), 0),
+                        totalCost: validPositions.reduce((sum: number, pos: any) => sum + (pos.total_cost || 0), 0),
+                        totalPL: validPositions.reduce((sum: number, pos: any) => sum + (pos.unrealized_pl || 0), 0)
+                    };
+                    updatePortfolioTotalsInDOM(totals);
+                }
             } else {
                 // For manual refresh, update everything normally
                 setPositions(mergedPositions);
@@ -300,7 +400,7 @@ const PortfolioView: React.FC = () => {
                 setIsRefreshing(false);
             }
         }
-    }, [selectedPortfolio, updatePLValueInDOM]);
+    }, [selectedPortfolio, updatePLValueInDOM, updateMarketDataInDOM, updatePortfolioTotalsInDOM]);
 
     useEffect(() => {
         if (selectedPortfolio) {
@@ -308,16 +408,20 @@ const PortfolioView: React.FC = () => {
         }
     }, [selectedPortfolio, loadPortfolioPositions]);
 
-    // Auto-refresh effect - use silent refresh to prevent flickering
+    // Auto-refresh effect - use silent refresh for smooth updates
     useEffect(() => {
-        if (!isEnabled || !selectedPortfolio) return;
+        if (!isEnabled || !selectedPortfolio) {
+            return;
+        }
 
         const interval = setInterval(() => {
             loadPortfolioPositions(true); // Silent refresh
             updateLastRefreshTime();
         }, intervalSeconds * 1000);
 
-        return () => clearInterval(interval);
+        return () => {
+            clearInterval(interval);
+        };
     }, [isEnabled, intervalSeconds, selectedPortfolio, updateLastRefreshTime, loadPortfolioPositions]);
 
     const loadPortfolios = async () => {
@@ -375,16 +479,7 @@ const PortfolioView: React.FC = () => {
         return value >= 0 ? <TrendingUpIcon fontSize="small" /> : <TrendingDownIcon fontSize="small" />;
     };
 
-    // Memoize portfolio summary calculations to prevent unnecessary re-renders
-    const portfolioTotals = useMemo(() => {
-        if (!positions.length) return { marketValue: 0, totalCost: 0, totalPL: 0 };
-
-        return {
-            marketValue: positions.reduce((sum, pos) => sum + (pos.market_value || 0), 0),
-            totalCost: positions.reduce((sum, pos) => sum + (pos.total_cost || 0), 0),
-            totalPL: positions.reduce((sum, pos) => sum + (pos.unrealized_pl || 0), 0)
-        };
-    }, [positions]);
+    // Portfolio totals are now managed via state from the consolidated endpoint
 
     // Memoize the positions array to prevent unnecessary re-renders
     const memoizedPositions = useMemo(() => positions, [positions]);
@@ -422,18 +517,23 @@ const PortfolioView: React.FC = () => {
                 </Box>
             </Box>
 
-            {/* Subtle refresh indicator */}
+            {/* Refresh status indicator - positioned in top-right corner to avoid jumping */}
             {isRefreshing && (
                 <Box sx={{
-                    display: 'flex',
-                    justifyContent: 'center',
-                    mb: 2,
-                    opacity: 0.7,
-                    transition: 'opacity 0.3s ease-in-out'
+                    position: 'fixed',
+                    top: 20,
+                    right: 20,
+                    zIndex: 1000,
+                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                    color: 'white',
+                    padding: '8px 12px',
+                    borderRadius: '20px',
+                    fontSize: '12px',
+                    opacity: 0.9,
+                    transition: 'opacity 0.3s ease-in-out',
+                    pointerEvents: 'none'
                 }}>
-                    <Typography variant="caption" color="text.secondary">
-                        🔄 Updating data...
-                    </Typography>
+                    🔄 Updating...
                 </Box>
             )}
 
@@ -458,54 +558,54 @@ const PortfolioView: React.FC = () => {
                             <Typography variant="h6" sx={{ opacity: 0.9 }}>Total Portfolio P&L</Typography>
                             <Typography variant="h4" sx={{
                                 fontWeight: 'bold',
-                                color: portfolioSummary.current_total_pl >= 0 ? '#4caf50' : '#f44336',
+                                color: (portfolioSummary?.current_total_pl || 0) >= 0 ? '#4caf50' : '#f44336',
                                 transition: 'color 0.3s ease-in-out'
                             }}>
-                                ${portfolioSummary.current_total_pl.toLocaleString()}
+                                ${(portfolioSummary?.current_total_pl || 0).toLocaleString()}
                             </Typography>
                         </Box>
                         <Box sx={{ textAlign: 'center' }}>
                             <Typography variant="h6" sx={{ opacity: 0.9 }}>Day-to-Date P&L</Typography>
                             <Typography variant="h4" sx={{
                                 fontWeight: 'bold',
-                                color: portfolioSummary.dtd_pl >= 0 ? '#4caf50' : '#f44336',
+                                color: (portfolioSummary?.dtd_pl || 0) >= 0 ? '#4caf50' : '#f44336',
                                 transition: 'color 0.3s ease-in-out'
                             }}>
-                                ${portfolioSummary.dtd_pl.toLocaleString()}
+                                ${(portfolioSummary?.dtd_pl || 0).toLocaleString()}
                             </Typography>
                             <Typography variant="caption" sx={{ opacity: 0.8 }}>
-                                vs {portfolioSummary.last_working_day_total_pl ? `$${portfolioSummary.last_working_day_total_pl.toLocaleString()}` : '$0'} (Last Working Day)
+                                vs {(portfolioSummary?.last_working_day_total_pl || 0) ? `$${(portfolioSummary?.last_working_day_total_pl || 0).toLocaleString()}` : '$0'} (Last Working Day)
                             </Typography>
                         </Box>
                         <Box sx={{ textAlign: 'center' }}>
                             <Typography variant="h6" sx={{ opacity: 0.9 }}>Month-to-Date P&L</Typography>
                             <Typography variant="h4" sx={{
                                 fontWeight: 'bold',
-                                color: portfolioSummary.mtd_pl >= 0 ? '#4caf50' : '#f44336',
+                                color: (portfolioSummary?.mtd_pl || 0) >= 0 ? '#4caf50' : '#f44336',
                                 transition: 'color 0.3s ease-in-out'
                             }}>
-                                ${portfolioSummary.mtd_pl.toLocaleString()}
+                                ${(portfolioSummary?.mtd_pl || 0).toLocaleString()}
                             </Typography>
                             <Typography variant="caption" sx={{ opacity: 0.8 }}>
-                                vs {portfolioSummary.month_start_total_pl ? `$${portfolioSummary.month_start_total_pl.toLocaleString()}` : '$0'} (Month Start)
+                                vs {(portfolioSummary?.month_start_total_pl || 0) ? `$${(portfolioSummary?.month_start_total_pl || 0).toLocaleString()}` : '$0'} (Month Start)
                             </Typography>
                         </Box>
                         <Box sx={{ textAlign: 'center' }}>
                             <Typography variant="h6" sx={{ opacity: 0.9 }}>Year-to-Date P&L</Typography>
                             <Typography variant="h4" sx={{
                                 fontWeight: 'bold',
-                                color: portfolioSummary.ytd_pl >= 0 ? '#4caf50' : '#f44336',
+                                color: (portfolioSummary?.ytd_pl || 0) >= 0 ? '#4caf50' : '#f44336',
                                 transition: 'color 0.3s ease-in-out'
                             }}>
-                                ${portfolioSummary.ytd_pl.toLocaleString()}
+                                ${(portfolioSummary?.ytd_pl || 0).toLocaleString()}
                             </Typography>
                             <Typography variant="caption" sx={{ opacity: 0.8 }}>
-                                vs {portfolioSummary.year_start_total_pl ? `$${portfolioSummary.year_start_total_pl.toLocaleString()}` : '$0'} (Year Start)
+                                vs {(portfolioSummary?.year_start_total_pl || 0) ? `$${(portfolioSummary?.year_start_total_pl || 0).toLocaleString()}` : '$0'} (Year Start)
                             </Typography>
                         </Box>
                     </Box>
                     <Typography variant="caption" sx={{ display: 'block', textAlign: 'center', mt: 2, opacity: 0.7 }}>
-                        Analysis Date: {portfolioSummary.analysis_date}
+                        Analysis Date: {portfolioSummary?.analysis_date || 'N/A'}
                     </Typography>
                 </Card>
             )}
@@ -518,33 +618,33 @@ const PortfolioView: React.FC = () => {
                     </Typography>
                     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' }, gap: 3 }}>
                         <Box textAlign="center">
-                            <Typography variant="h5" sx={{
-                                color: portfolioTotals.marketValue >= 0 ? '#2e7d32' : '#d32f2f',
+                            <Typography variant="h5" id="total-market-value" sx={{
+                                color: (portfolioTotals?.marketValue || 0) >= 0 ? '#2e7d32' : '#d32f2f',
                                 fontWeight: 'bold'
                             }}>
-                                ${portfolioTotals.marketValue.toLocaleString()}
+                                ${(portfolioTotals?.marketValue || 0).toLocaleString()}
                             </Typography>
                             <Typography variant="body2" color="textSecondary">
                                 Total Market Value
                             </Typography>
                         </Box>
                         <Box textAlign="center">
-                            <Typography variant="h5" sx={{
-                                color: portfolioTotals.totalCost >= 0 ? '#2e7d32' : '#d32f2f',
+                            <Typography variant="h5" id="total-cost" sx={{
+                                color: (portfolioTotals?.totalCost || 0) >= 0 ? '#2e7d32' : '#d32f2f',
                                 fontWeight: 'bold'
                             }}>
-                                ${portfolioTotals.totalCost.toLocaleString()}
+                                ${(portfolioTotals?.totalCost || 0).toLocaleString()}
                             </Typography>
                             <Typography variant="body2" color="textSecondary">
                                 Total Cost
                             </Typography>
                         </Box>
                         <Box textAlign="center">
-                            <Typography variant="h5" sx={{
-                                color: portfolioTotals.totalPL >= 0 ? '#2e7d32' : '#d32f2f',
+                            <Typography variant="h5" id="total-pl" sx={{
+                                color: (portfolioTotals?.totalPL || 0) >= 0 ? '#2e7d32' : '#d32f2f',
                                 fontWeight: 'bold'
                             }}>
-                                ${portfolioTotals.totalPL.toLocaleString()}
+                                ${(portfolioTotals?.totalPL || 0).toLocaleString()}
                             </Typography>
                             <Typography variant="body2" color="textSecondary">
                                 Total Unrealized P&L
@@ -572,7 +672,7 @@ const PortfolioView: React.FC = () => {
                                     Market Value
                                 </Typography>
                                 <Typography variant="h4">
-                                    {formatCurrency(portfolioTotals.marketValue)}
+                                    {formatCurrency(portfolioTotals?.marketValue || 0)}
                                 </Typography>
                             </CardContent>
                         </Card>
@@ -582,7 +682,7 @@ const PortfolioView: React.FC = () => {
                                     Total Cost
                                 </Typography>
                                 <Typography variant="h4">
-                                    {formatCurrency(portfolioTotals.totalCost)}
+                                    {formatCurrency(portfolioTotals?.totalCost || 0)}
                                 </Typography>
                             </CardContent>
                         </Card>
@@ -659,6 +759,7 @@ const PortfolioView: React.FC = () => {
                                         <PositionRow
                                             key={`${position.symbol}-${index}`}
                                             position={position}
+                                            rowIndex={index}
                                             onEditPrice={(symbol, currentPrice) => setPriceDialog({ open: true, symbol, currentPrice })}
                                         />
                                     ))

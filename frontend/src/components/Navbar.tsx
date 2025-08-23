@@ -30,7 +30,7 @@ const Navbar: React.FC = () => {
         { label: 'Trade Management', path: '/trade-entry', icon: <AddCircleIcon /> },
         { label: 'Portfolio View', path: '/portfolio-view', icon: <AssessmentIcon /> },
         { label: 'Portfolio Analytics', path: '/portfolio-analytics', icon: <AssessmentIcon /> },
-        { label: 'AI Predictions', path: '/ai-predictions', icon: <PsychologyIcon /> },
+
     ];
 
     const settingsMenuItems = [

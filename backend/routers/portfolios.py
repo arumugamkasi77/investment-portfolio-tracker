@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from typing import List, Optional
 from datetime import datetime, date, timedelta
 import asyncio
@@ -22,43 +22,84 @@ async def calculate_dtd_mtd_ytd_pl_for_symbol(portfolio_name: str, symbol: str, 
     """
     Calculate DTD, MTD, YTD P&L for a specific symbol using enhanced snapshots logic.
     Returns (dtd_pl, mtd_pl, ytd_pl) tuple.
+    Uses NYSE calendar-aware logic for month-end and year-end calculations.
     """
     daily_snapshots_collection = get_daily_snapshots_collection()
     
     today = date.today()
-    yesterday = today - timedelta(days=1)
-    month_start = today.replace(day=1)
-    year_start = today.replace(month=1, day=1)
+    
+    # Get previous trading day (yesterday or last working day)
+    from services.enhanced_snapshots import EnhancedSnapshotsService
+    enhanced_service = EnhancedSnapshotsService()
+    previous_trading_day = enhanced_service._get_previous_trading_day(today)
+    last_month_end = enhanced_service._get_last_trading_day_of_previous_month(today)
+    last_year_end = enhanced_service._get_last_trading_day_of_previous_year(today)
     
     # Convert to datetime for MongoDB queries
-    yesterday_datetime = datetime.combine(yesterday, datetime.min.time())
-    month_start_datetime = datetime.combine(month_start, datetime.min.time())
-    year_start_datetime = datetime.combine(year_start, datetime.min.time())
+    previous_trading_day_datetime = datetime.combine(previous_trading_day, datetime.min.time())
+    last_month_end_datetime = datetime.combine(last_month_end, datetime.min.time())
+    last_year_end_datetime = datetime.combine(last_year_end, datetime.min.time())
+    
+    print(f"🔍 DEBUG: Calculating P&L for {symbol} in {portfolio_name}")
+    print(f"  Today: {today}")
+    print(f"  Previous trading day: {previous_trading_day}")
+    print(f"  Last month end: {last_month_end}")
+    print(f"  Last year end: {last_year_end}")
     
     # Get stored snapshots for comparison
-    yesterday_snapshot = await daily_snapshots_collection.find_one({
+    previous_trading_day_snapshot = await daily_snapshots_collection.find_one({
         "portfolio_name": portfolio_name,
         "symbol": symbol,
-        "snapshot_date": yesterday_datetime
+        "snapshot_date": previous_trading_day_datetime
     })
     
-    month_start_snapshot = await daily_snapshots_collection.find_one({
+    last_month_end_snapshot = await daily_snapshots_collection.find_one({
         "portfolio_name": portfolio_name,
         "symbol": symbol,
-        "snapshot_date": month_start_datetime
+        "snapshot_date": last_month_end_datetime
     })
     
-    year_start_snapshot = await daily_snapshots_collection.find_one({
+    last_year_end_snapshot = await daily_snapshots_collection.find_one({
         "portfolio_name": portfolio_name,
         "symbol": symbol,
-        "snapshot_date": year_start_datetime
+        "snapshot_date": last_year_end_datetime
     })
+    
+    # Fallback: if no snapshot for exact dates, find most recent from previous periods
+    if not last_month_end_snapshot:
+        last_month_end_snapshot = await daily_snapshots_collection.find_one(
+            {
+                "portfolio_name": portfolio_name,
+                "symbol": symbol,
+                "snapshot_date": {"$lte": last_month_end_datetime}
+            },
+            sort=[("snapshot_date", -1)]  # Get most recent in previous month
+        )
+    
+    if not last_year_end_snapshot:
+        last_year_end_snapshot = await daily_snapshots_collection.find_one(
+            {
+                "portfolio_name": portfolio_name,
+                "symbol": symbol,
+                "snapshot_date": {"$lte": last_year_end_datetime}
+            },
+            sort=[("snapshot_date", -1)]  # Get most recent in previous year
+        )
     
     # Calculate DTD, MTD, YTD P&L
-    # If no snapshot exists, use 0 (as per your requirement)
-    dtd_pl = current_inception_pl - (yesterday_snapshot["inception_pl"] if yesterday_snapshot else 0.0)
-    mtd_pl = current_inception_pl - (month_start_snapshot["inception_pl"] if month_start_snapshot else 0.0)
-    ytd_pl = current_inception_pl - (year_start_snapshot["inception_pl"] if year_start_snapshot else 0.0)
+    # DTD = Today's P&L - Previous trading day's P&L
+    dtd_pl = current_inception_pl - (previous_trading_day_snapshot["inception_pl"] if previous_trading_day_snapshot else 0.0)
+    
+    # MTD = Today's P&L - Last month-end P&L
+    mtd_pl = current_inception_pl - (last_month_end_snapshot["inception_pl"] if last_month_end_snapshot else 0.0)
+    
+    # YTD = Today's P&L - Last year-end P&L
+    ytd_pl = current_inception_pl - (last_year_end_snapshot["inception_pl"] if last_year_end_snapshot else 0.0)
+    
+    print(f"  Previous trading day snapshot: {'Found' if previous_trading_day_snapshot else 'Not found'}")
+    print(f"  Last month-end snapshot: {'Found' if last_month_end_snapshot else 'Not found'}")
+    print(f"  Last year-end snapshot: {'Found' if last_year_end_snapshot else 'Not found'}")
+    print(f"  DTD PL: ${dtd_pl:,.2f}, MTD PL: ${mtd_pl:,.2f}, YTD PL: ${ytd_pl:,.2f}")
     
     return dtd_pl, mtd_pl, ytd_pl
 
@@ -83,115 +124,187 @@ async def get_portfolios():
     return [serialize_portfolio(portfolio) for portfolio in portfolios]
 
 @router.get("/{portfolio_name}/positions")
-async def get_portfolio_positions(portfolio_name: str):
+async def get_portfolio_positions(portfolio_name: str, force_fresh: bool = Query(False, description="Force fresh market data")):
     """Get current positions for a portfolio with mark-to-market values"""
     trades_collection = get_trades_collection()
     market_data_collection = get_market_data_collection()
     
-    # Aggregate trades to get current positions
-    pipeline = [
-        {"$match": {"portfolio_name": portfolio_name}},
-        {
-            "$group": {
-                "_id": {
-                    "symbol": "$symbol",
-                    "instrument_type": "$instrument_type"
-                },
-                "total_quantity_bought": {
-                    "$sum": {
-                        "$cond": [
-                            {"$eq": ["$trade_type", "BUY"]},
-                            "$quantity",
-                            0
-                        ]
-                    }
-                },
-                "total_quantity_sold": {
-                    "$sum": {
-                        "$cond": [
-                            {"$eq": ["$trade_type", "SELL"]},
-                            "$quantity",
-                            0
-                        ]
-                    }
-                },
-                "total_cost_bought": {
-                    "$sum": {
-                        "$cond": [
-                            {"$eq": ["$trade_type", "BUY"]},
-                            {"$add": [
-                                {"$multiply": ["$quantity", "$executed_price"]},
-                                "$brokerage"
-                            ]},
-                            0
-                        ]
-                    }
-                },
-                "total_proceeds_sold": {
-                    "$sum": {
-                        "$cond": [
-                            {"$eq": ["$trade_type", "SELL"]},
-                            {"$subtract": [
-                                {"$multiply": ["$quantity", "$executed_price"]},
-                                "$brokerage"
-                            ]},
-                            0
-                        ]
-                    }
-                },
-                "realized_pl": {
-                    "$sum": {
-                        "$cond": [
-                            {"$eq": ["$trade_type", "SELL"]},
-                            {"$subtract": [
-                                {"$multiply": ["$quantity", "$executed_price"]},
-                                "$brokerage"
-                            ]},
-                            0
-                        ]
-                    }
-                }
-            }
-        },
-        {
-            "$project": {
-                "symbol": "$_id.symbol",
-                "instrument_type": "$_id.instrument_type",
-                "position_quantity": {"$subtract": ["$total_quantity_bought", "$total_quantity_sold"]},
-                "total_cost": "$total_cost_bought",
-                "total_proceeds": "$total_proceeds_sold",
-                "net_cost": {"$subtract": ["$total_cost_bought", "$total_proceeds_sold"]},
-                "average_cost": {
-                    "$cond": [
-                        {"$gt": [{"$subtract": ["$total_quantity_bought", "$total_quantity_sold"]}, 0]},
-                        {"$divide": [
-                            {"$subtract": ["$total_cost_bought", "$total_proceeds_sold"]},
-                            {"$subtract": ["$total_quantity_bought", "$total_quantity_sold"]}
-                        ]},
-                        0
-                    ]
-                }
-            }
-        },
-        {
-            "$match": {
-                "position_quantity": {"$ne": 0}  # Only positions with non-zero quantity
-            }
+    # Python-based FIFO calculation for portfolio positions
+    async def calculate_fifo_position(symbol: str, instrument_type: str):
+        """Calculate position using FIFO method for accurate average cost"""
+        
+        # Get all trades for this symbol, sorted by trade_date
+        trades = await trades_collection.find({
+            "portfolio_name": portfolio_name,
+            "symbol": symbol
+        }).sort("trade_date", 1).to_list(length=None)
+        
+        if not trades:
+            return None
+        
+        # Debug: Show all trades for NVDA
+        if symbol == "NVDA":
+            print(f"🔍 DEBUG: Found {len(trades)} trades for NVDA:")
+            for i, trade in enumerate(trades):
+                print(f"  Trade {i+1}: {trade['trade_type']} {trade['quantity']} shares at ${trade['executed_price']} on {trade['trade_date']}")
+            print()
+        
+        # FIFO tracking
+        buy_lots = []  # List of (quantity, price_per_share, brokerage_per_share)
+        total_quantity_bought = 0
+        total_quantity_sold = 0
+        total_cost_bought = 0
+        total_proceeds_sold = 0
+        realized_pl = 0
+        
+        # Process trades chronologically
+        for trade in trades:
+            if trade["trade_type"] == "BUY":
+                # Add to buy lots
+                quantity = trade["quantity"]
+                price_per_share = trade["executed_price"]
+                brokerage_per_share = trade.get("brokerage", 0) / quantity if quantity > 0 else 0
+                
+                buy_lots.append((quantity, price_per_share, brokerage_per_share))
+                total_quantity_bought += quantity
+                total_cost_bought += (quantity * price_per_share) + trade.get("brokerage", 0)
+                
+                # Debug for NVDA
+                if symbol == "NVDA":
+                    print(f"  🔍 BUY: {quantity} shares at ${price_per_share} + ${trade.get('brokerage', 0)} brokerage")
+                    print(f"     Total cost for this trade: ${(quantity * price_per_share) + trade.get('brokerage', 0):,.2f}")
+                
+            elif trade["trade_type"] == "SELL":
+                # Apply FIFO to sell
+                remaining_to_sell = trade["quantity"]
+                sell_proceeds = (trade["quantity"] * trade["executed_price"]) - trade.get("brokerage", 0)
+                total_proceeds_sold += sell_proceeds
+                total_quantity_sold += trade["quantity"]
+                
+                # Debug for NVDA
+                if symbol == "NVDA":
+                    print(f"  🔍 SELL: {trade['quantity']} shares at ${trade['executed_price']} - ${trade.get('brokerage', 0)} brokerage")
+                    print(f"     Total proceeds for this trade: ${sell_proceeds:,.2f}")
+                
+                # Calculate realized P&L using FIFO
+                while remaining_to_sell > 0 and buy_lots:
+                    lot_quantity, lot_price, lot_brokerage = buy_lots[0]
+                    
+                    if lot_quantity <= remaining_to_sell:
+                        # Sell entire lot
+                        shares_sold_from_lot = lot_quantity
+                        cost_basis = lot_quantity * (lot_price + lot_brokerage)
+                        realized_pl += (shares_sold_from_lot * trade["executed_price"]) - cost_basis
+                        
+                        remaining_to_sell -= lot_quantity
+                        buy_lots.pop(0)  # Remove consumed lot
+                        
+                    else:
+                        # Sell partial lot
+                        shares_sold_from_lot = remaining_to_sell
+                        cost_basis = shares_sold_from_lot * (lot_price + lot_brokerage)
+                        realized_pl += (shares_sold_from_lot * trade["executed_price"]) - cost_basis
+                        
+                        # Update remaining lot
+                        remaining_quantity = lot_quantity - shares_sold_from_lot
+                        buy_lots[0] = (remaining_quantity, lot_price, lot_brokerage)
+                        remaining_to_sell = 0
+        
+        # Calculate remaining position
+        position_quantity = total_quantity_bought - total_quantity_sold
+        
+        if position_quantity <= 0:
+            return None
+        
+        # Calculate remaining cost basis using FIFO
+        remaining_cost_basis = sum(quantity * (price + brokerage) for quantity, price, brokerage in buy_lots)
+        
+        # Calculate weighted average cost
+        average_cost = remaining_cost_basis / position_quantity if position_quantity > 0 else 0
+        
+        # Debug logging for NVDA
+        if symbol == "NVDA":
+            print(f"🔍 DEBUG: NVDA FIFO Calculation:")
+            print(f"  - Total bought: {total_quantity_bought} shares, ${total_cost_bought:,.2f}")
+            print(f"  - Total sold: {total_quantity_sold} shares, ${total_proceeds_sold:,.2f}")
+            print(f"  - Remaining position: {position_quantity} shares")
+            print(f"  - Buy lots: {buy_lots}")
+            print(f"  - Remaining cost basis: ${remaining_cost_basis:,.2f}")
+            print(f"  - Average cost: ${average_cost:,.2f}")
+        
+        return {
+            "symbol": symbol,
+            "instrument_type": instrument_type,
+            "position_quantity": position_quantity,
+            "total_cost": remaining_cost_basis,
+            "total_proceeds": total_proceeds_sold,
+            "net_cost": remaining_cost_basis,
+            "total_quantity_bought": total_quantity_bought,
+            "total_quantity_sold": total_quantity_sold,
+            "total_cost_bought": total_cost_bought,
+            "total_proceeds_sold": total_proceeds_sold,
+            "average_cost": average_cost,
+            "realized_pl": realized_pl
         }
-    ]
     
-    cursor = trades_collection.aggregate(pipeline)
-    positions = await cursor.to_list(length=None)
+    # Get unique symbols from trades
+    symbols = await trades_collection.distinct("symbol", {"portfolio_name": portfolio_name})
+    
+    # Calculate FIFO positions for each symbol
+    positions = []
+    for symbol in symbols:
+        # Get instrument type from first trade
+        first_trade = await trades_collection.find_one({"portfolio_name": portfolio_name, "symbol": symbol})
+        if first_trade:
+            instrument_type = first_trade.get("instrument_type", "STOCK")
+            position = await calculate_fifo_position(symbol, instrument_type)
+            if position:
+                positions.append(position)
     
     # Get current market prices and calculate mark-to-market
     result = []
+    
+    # CRITICAL FIX: Single batch fetch for all symbols to eliminate race conditions
+    if force_fresh:
+        print(f"🔧 DEBUG: Starting single batch fetch for all {len(positions)} symbols")
+        symbols_to_fetch = [pos["symbol"] for pos in positions]
+        print(f"🔧 DEBUG: Symbols to fetch: {symbols_to_fetch}")
+        
+        # Single batch call - no individual symbol calls
+        all_prices = await market_data_service.get_multiple_prices(symbols_to_fetch)
+        print(f"🔧 DEBUG: Batch fetch completed. Prices received: {list(all_prices.keys())}")
+        
+        # Verify all prices were fetched
+        for symbol in symbols_to_fetch:
+            if symbol in all_prices and all_prices[symbol]:
+                print(f"✅ DEBUG: {symbol} = ${all_prices[symbol]['price']} ({all_prices[symbol].get('price_type', 'unknown')})")
+            else:
+                print(f"❌ DEBUG: {symbol} = NO PRICE DATA")
+    
     for position in positions:
         symbol = position["symbol"]
         
-        # Get current market price from real-time market data service
+        # Get current market price with extended hours priority
         try:
-            price_data = await market_data_service.get_stock_price(symbol)
+            print(f"🔍 DEBUG: Processing position {symbol} (row {len(result)})")
+            
+            if force_fresh:
+                # Use the pre-fetched price data from single batch call
+                price_data = all_prices.get(symbol)
+                if price_data:
+                    print(f"🔍 DEBUG: Using batch-fetched price for {symbol}: ${price_data['price']}")
+                else:
+                    print(f"⚠️ DEBUG: No batch price for {symbol}, using fallback")
+                    price_data = None
+            else:
+                # Use cached data for normal requests
+                print(f"🔍 DEBUG: Using cached data for {symbol}")
+                price_data = await market_data_service.get_stock_price(symbol)
+            
             current_price = price_data["price"] if price_data else position["average_cost"]
+            price_type = price_data.get("price_type", "unknown") if price_data else "unknown"
+            print(f"🔍 DEBUG: Final price for {symbol}: ${current_price} ({price_type})")
+            
         except Exception as e:
             print(f"Error fetching market price for {symbol}: {e}")
             current_price = position["average_cost"]  # Fallback to cost price
@@ -227,12 +340,20 @@ async def get_portfolio_positions(portfolio_name: str):
             "ytd_pl": round(ytd_pl, 2)
         }
         
+        # CRITICAL: Log the result object before adding to array
+        print(f"🔍 DEBUG: Adding to result array: {symbol} = {position_summary['current_price']}")
+        
         result.append(position_summary)
+    
+    # CRITICAL: Log the final result array to verify data integrity
+    print(f"🔍 DEBUG: Final result array:")
+    for i, pos in enumerate(result):
+        print(f"  [{i}] {pos['symbol']}: price=${pos['current_price']}, market_value=${pos['market_value']}")
     
     return result
 
 @router.get("/{portfolio_name}/performance")
-async def get_portfolio_performance(portfolio_name: str):
+async def get_portfolio_performance(portfolio_name: str, force_fresh: bool = False):
     """Get portfolio performance metrics including DTD, MTD, YTD P&L"""
     daily_snapshots_collection = get_daily_snapshots_collection()
     
@@ -254,7 +375,7 @@ async def get_portfolio_performance(portfolio_name: str):
     latest_snapshots = await cursor.to_list(length=None)
     
     # For now, return current positions (daily snapshots will be implemented with cron job)
-    current_positions = await get_portfolio_positions(portfolio_name)
+    current_positions = await get_portfolio_positions(portfolio_name, force_fresh)
     
     performance_summary = {
         "portfolio_name": portfolio_name,
@@ -267,6 +388,46 @@ async def get_portfolio_performance(portfolio_name: str):
     }
     
     return performance_summary
+
+@router.get("/{portfolio_name}/positions-with-analysis")
+async def get_portfolio_positions_with_analysis(portfolio_name: str, force_fresh: bool = False):
+    """
+    Get portfolio positions AND DTD/MTD/YTD analysis in a single call.
+    This eliminates the need for multiple individual market data fetches.
+    """
+    try:
+        # Get positions with batch market data fetch
+        positions = await get_portfolio_positions(portfolio_name, force_fresh)
+        
+        # Calculate overall portfolio DTD/MTD/YTD P&L
+        total_dtd_pl = sum(pos.get("dtd_pl", 0) for pos in positions)
+        total_mtd_pl = sum(pos.get("mtd_pl", 0) for pos in positions)
+        total_ytd_pl = sum(pos.get("ytd_pl", 0) for pos in positions)
+        
+        # Calculate portfolio totals
+        total_market_value = sum(pos["market_value"] for pos in positions)
+        total_cost = sum(pos["total_cost"] for pos in positions)
+        total_unrealized_pl = sum(pos["unrealized_pl"] for pos in positions)
+        total_inception_pl = sum(pos["inception_pl"] for pos in positions)
+        
+        return {
+            "portfolio_name": portfolio_name,
+            "positions": positions,
+            "portfolio_totals": {
+                "total_market_value": round(total_market_value, 2),
+                "total_cost": round(total_cost, 2),
+                "total_unrealized_pl": round(total_unrealized_pl, 2),
+                "total_inception_pl": round(total_inception_pl, 2),
+                "total_dtd_pl": round(total_dtd_pl, 2),
+                "total_mtd_pl": round(total_mtd_pl, 2),
+                "total_ytd_pl": round(total_ytd_pl, 2)
+            },
+            "analysis_date": date.today().isoformat(),
+            "message": "Single call returning both positions and analysis"
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting portfolio with analysis: {str(e)}")
 
 @router.post("/{portfolio_name}/market-price/{symbol}")
 async def update_market_price(portfolio_name: str, symbol: str, price: float):

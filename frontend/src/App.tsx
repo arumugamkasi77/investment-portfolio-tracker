@@ -10,7 +10,7 @@ import TradeEntry from './pages/TradeEntry';
 import StockManagement from './pages/StockManagement';
 import OptionManagement from './pages/OptionManagement';
 import PortfolioAnalytics from './pages/PortfolioAnalytics';
-import AIPredictions from './pages/AIPredictions';
+
 import { AutoRefreshProvider } from './contexts/AutoRefreshContext';
 
 const theme = createTheme({
@@ -40,7 +40,7 @@ function App() {
             <Route path="/stock-management" element={<StockManagement />} />
             <Route path="/option-management" element={<OptionManagement />} />
             <Route path="/portfolio-analytics" element={<PortfolioAnalytics />} />
-            <Route path="/ai-predictions" element={<AIPredictions />} />
+
           </Routes>
         </Router>
       </AutoRefreshProvider>

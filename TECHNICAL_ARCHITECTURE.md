@@ -352,7 +352,7 @@ App
     ├── PortfolioManagement (Historical snapshots)
     ├── StockManagement
     ├── OptionManagement
-    └── AIPredictions (LSTM models - temporarily disabled)
+    └── Portfolio Analytics (Enhanced P&L tracking)
 ```
 
 #### **Auto-Refresh System** ⭐ *NEW*
@@ -511,11 +511,11 @@ class ApiService {
 - **Data Sources**: Combined real-time market data with stored snapshots
 - **Visualization**: Color-coded P&L indicators with trend icons
 
-### **AI Predictions Module** (Temporarily Disabled)
-- **Feature**: LSTM-based stock price prediction models
-- **Technology**: TensorFlow/Keras, scikit-learn, yfinance
-- **Status**: Complete implementation but disabled due to training stability issues
-- **Future**: Model architecture needs optimization for production use
+### **Race Condition Elimination**
+- **Feature**: Single batch market data fetch eliminates price mixing between symbols
+- **Technology**: Consolidated API endpoints with batch processing
+- **Benefits**: Consistent, accurate market data without race conditions
+- **Implementation**: `/portfolios/{portfolio}/positions-with-analysis` endpoint
 
 ### **Performance Optimizations**
 - **Database**: Optimized MongoDB queries with proper indexing
@@ -531,4 +531,4 @@ class ApiService {
 
 ---
 
-**This document provides a comprehensive technical overview of the Investment Portfolio Tracker system architecture, including all recent enhancements and improvements implemented in August 2025.**
+**This document provides a comprehensive technical overview of the Investment Portfolio Tracker system architecture, including all recent enhancements and improvements implemented in August 2025. The AI Predictions module has been removed to focus on core portfolio tracking functionality.**

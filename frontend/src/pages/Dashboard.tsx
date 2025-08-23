@@ -67,22 +67,26 @@ const Dashboard: React.FC = () => {
 
             for (const portfolio of portfoliosData) {
                 try {
-                    // Get portfolio performance
-                    const performanceResponse = await portfolioApi.getPortfolioPerformance(portfolio.portfolio_name);
-                    const performance = performanceResponse.data;
+                    // Get portfolio performance with fresh data for auto-refresh
+                    const performanceUrl = isSilentRefresh
+                        ? `http://localhost:8000/portfolios/${portfolio.portfolio_name}/performance?force_fresh=true`
+                        : `http://localhost:8000/portfolios/${portfolio.portfolio_name}/performance`;
 
-                    totalValue += performance.total_market_value || 0;
-                    totalPL += performance.total_unrealized_pl || 0;
+                    const performanceResponse = await fetch(performanceUrl);
+                    if (performanceResponse.ok) {
+                        const performance = await performanceResponse.json();
+                        totalValue += performance.total_market_value || 0;
+                        totalPL += performance.total_unrealized_pl || 0;
+                    }
 
-                    // Get enhanced P&L data
-                    const enhancedResponse = await fetch(`http://localhost:8000/enhanced-snapshots/dtd-mtd-ytd/${portfolio.portfolio_name}`);
+                    // Get enhanced P&L data using consolidated endpoint
+                    const enhancedResponse = await fetch(`http://localhost:8000/portfolios/${portfolio.portfolio_name}/positions-with-analysis`);
                     if (enhancedResponse.ok) {
                         const enhancedData = await enhancedResponse.json();
-                        const portfolioSummary = enhancedData.data.find((item: any) => item.type === 'portfolio_summary');
-                        if (portfolioSummary) {
-                            totalDTDPL += portfolioSummary.dtd_pl || 0;
-                            totalMTDPL += portfolioSummary.mtd_pl || 0;
-                            totalYTDPL += portfolioSummary.ytd_pl || 0;
+                        if (enhancedData.portfolio_totals) {
+                            totalDTDPL += enhancedData.portfolio_totals.total_dtd_pl || 0;
+                            totalMTDPL += enhancedData.portfolio_totals.total_mtd_pl || 0;
+                            totalYTDPL += enhancedData.portfolio_totals.total_ytd_pl || 0;
                         }
                     }
                 } catch (err) {
@@ -218,18 +222,23 @@ const Dashboard: React.FC = () => {
                 />
             </Box>
 
-            {/* Subtle refresh indicator */}
+            {/* Refresh status indicator - positioned in top-right corner to avoid jumping */}
             {isRefreshing && (
                 <Box sx={{
-                    display: 'flex',
-                    justifyContent: 'center',
-                    mb: 2,
-                    opacity: 0.7,
-                    transition: 'opacity 0.3s ease-in-out'
+                    position: 'fixed',
+                    top: 20,
+                    right: 20,
+                    zIndex: 1000,
+                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                    color: 'white',
+                    padding: '8px 12px',
+                    borderRadius: '20px',
+                    fontSize: '12px',
+                    opacity: 0.9,
+                    transition: 'opacity 0.3s ease-in-out',
+                    pointerEvents: 'none'
                 }}>
-                    <Typography variant="caption" color="text.secondary">
-                        🔄 Updating data...
-                    </Typography>
+                    🔄 Updating...
                 </Box>
             )}
 

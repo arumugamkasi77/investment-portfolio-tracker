@@ -32,6 +32,7 @@ interface DashboardStats {
 
 const Dashboard: React.FC = () => {
     const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
+    const [portfolioPerformance, setPortfolioPerformance] = useState<{ [key: string]: any }>({});
     const [stats, setStats] = useState<DashboardStats>({
         totalPortfolios: 0,
         totalValue: 0,
@@ -58,41 +59,61 @@ const Dashboard: React.FC = () => {
             const portfoliosResponse = await portfolioApi.getPortfolios();
             const portfoliosData = portfoliosResponse.data;
 
-            // Calculate totals
+            // Set portfolios state for rendering
+            setPortfolios(portfoliosData);
+
+            // Calculate totals and fetch individual portfolio performance
             let totalValue = 0;
             let totalPL = 0;
             let totalDTDPL = 0;
             let totalMTDPL = 0;
             let totalYTDPL = 0;
 
+            const performanceData: { [key: string]: any } = {};
+
             for (const portfolio of portfoliosData) {
                 try {
-                    // Get portfolio performance with fresh data for auto-refresh
-                    const performanceUrl = isSilentRefresh
-                        ? `http://localhost:8000/portfolios/${portfolio.portfolio_name}/performance?force_fresh=true`
-                        : `http://localhost:8000/portfolios/${portfolio.portfolio_name}/performance`;
-
-                    const performanceResponse = await fetch(performanceUrl);
-                    if (performanceResponse.ok) {
-                        const performance = await performanceResponse.json();
-                        totalValue += performance.total_market_value || 0;
-                        totalPL += performance.total_unrealized_pl || 0;
-                    }
-
-                    // Get enhanced P&L data using consolidated endpoint
+                    // Get enhanced P&L data using consolidated endpoint for individual portfolio performance
                     const enhancedResponse = await fetch(`http://localhost:8000/portfolios/${portfolio.portfolio_name}/positions-with-analysis`);
                     if (enhancedResponse.ok) {
                         const enhancedData = await enhancedResponse.json();
                         if (enhancedData.portfolio_totals) {
-                            totalDTDPL += enhancedData.portfolio_totals.total_dtd_pl || 0;
-                            totalMTDPL += enhancedData.portfolio_totals.total_mtd_pl || 0;
-                            totalYTDPL += enhancedData.portfolio_totals.total_ytd_pl || 0;
+                            const portfolioTotals = enhancedData.portfolio_totals;
+
+                            // Store individual portfolio performance
+                            performanceData[portfolio.portfolio_name] = {
+                                marketValue: portfolioTotals.total_market_value || 0,
+                                inceptionPL: portfolioTotals.total_inception_pl || 0,
+                                dtdPL: portfolioTotals.total_dtd_pl || 0,
+                                mtdPL: portfolioTotals.total_mtd_pl || 0,
+                                ytdPL: portfolioTotals.total_ytd_pl || 0,
+                                unrealizedPL: portfolioTotals.total_unrealized_pl || 0
+                            };
+
+                            // Add to totals
+                            totalValue += portfolioTotals.total_market_value || 0;
+                            totalPL += portfolioTotals.total_unrealized_pl || 0;
+                            totalDTDPL += portfolioTotals.total_dtd_pl || 0;
+                            totalMTDPL += portfolioTotals.total_mtd_pl || 0;
+                            totalYTDPL += portfolioTotals.total_ytd_pl || 0;
                         }
                     }
                 } catch (err) {
                     console.warn(`Failed to get performance for portfolio ${portfolio.portfolio_name}:`, err);
+                    // Set default values if fetch fails
+                    performanceData[portfolio.portfolio_name] = {
+                        marketValue: 0,
+                        inceptionPL: 0,
+                        dtdPL: 0,
+                        mtdPL: 0,
+                        ytdPL: 0,
+                        unrealizedPL: 0
+                    };
                 }
             }
+
+            // Set portfolio performance data
+            setPortfolioPerformance(performanceData);
 
             setStats(prev => ({
                 ...prev,
@@ -292,23 +313,76 @@ const Dashboard: React.FC = () => {
                         </Typography>
                     ) : (
                         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' }, gap: 2 }}>
-                            {portfolios.map((portfolio) => (
-                                <Card variant="outlined" key={portfolio._id}>
-                                    <CardContent>
-                                        <Typography variant="h6" component="div">
-                                            {portfolio.portfolio_name}
-                                        </Typography>
-                                        {portfolio.description && (
-                                            <Typography variant="body2" color="text.secondary">
-                                                {portfolio.description}
+                            {portfolios.map((portfolio) => {
+                                const performance = portfolioPerformance[portfolio.portfolio_name];
+                                return (
+                                    <Card variant="outlined" key={portfolio._id} sx={{
+                                        transition: 'all 0.3s ease-in-out',
+                                        '&:hover': {
+                                            transform: 'translateY(-2px)',
+                                            boxShadow: 3
+                                        }
+                                    }}>
+                                        <CardContent>
+                                            <Typography variant="h6" component="div" gutterBottom>
+                                                {portfolio.portfolio_name}
                                             </Typography>
-                                        )}
-                                        <Typography variant="caption" display="block" sx={{ mt: 1 }}>
-                                            Created: {new Date(portfolio.created_at || '').toLocaleDateString()}
-                                        </Typography>
-                                    </CardContent>
-                                </Card>
-                            ))}
+
+                                            {/* Performance Metrics */}
+                                            {performance ? (
+                                                <Box sx={{ mt: 2 }}>
+                                                    {/* Market Value */}
+                                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                                                        <Typography variant="body2" color="text.secondary">
+                                                            Market Value:
+                                                        </Typography>
+                                                        <Typography variant="body2" fontWeight="medium" color="success.main">
+                                                            ${performance.marketValue?.toLocaleString() || '0'}
+                                                        </Typography>
+                                                    </Box>
+
+                                                    {/* Inception P&L */}
+                                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                                                        <Typography variant="body2" color="text.secondary">
+                                                            Inception P&L:
+                                                        </Typography>
+                                                        <Typography
+                                                            variant="body2"
+                                                            fontWeight="medium"
+                                                            color={performance.inceptionPL >= 0 ? 'success.main' : 'error.main'}
+                                                        >
+                                                            ${performance.inceptionPL?.toLocaleString() || '0'}
+                                                        </Typography>
+                                                    </Box>
+
+                                                    {/* DTD P&L */}
+                                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                                                        <Typography variant="body2" color="text.secondary">
+                                                            DTD P&L:
+                                                        </Typography>
+                                                        <Typography
+                                                            variant="body2"
+                                                            fontWeight="medium"
+                                                            color={performance.dtdPL >= 0 ? 'success.main' : 'error.main'}
+                                                        >
+                                                            ${performance.dtdPL?.toLocaleString() || '0'}
+                                                        </Typography>
+                                                    </Box>
+                                                </Box>
+                                            ) : (
+                                                <Box sx={{ mt: 2, display: 'flex', justifyContent: 'center' }}>
+                                                    <CircularProgress size={20} />
+                                                </Box>
+                                            )}
+
+                                            {/* Creation Date */}
+                                            <Typography variant="caption" display="block" sx={{ mt: 2, color: 'text.secondary' }}>
+                                                Created: {new Date(portfolio.created_at || '').toLocaleDateString()}
+                                            </Typography>
+                                        </CardContent>
+                                    </Card>
+                                );
+                            })}
                         </Box>
                     )}
                 </CardContent>

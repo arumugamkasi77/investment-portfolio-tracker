@@ -161,10 +161,10 @@ const PositionRow = React.memo(({ position, onEditPrice, rowIndex }: {
             </TableCell>
 
             {/* Individual P&L cells that update independently */}
-            <PLValueCell value={position.inception_pl} label="Inception P&L" rowIndex={0} columnIndex={0} />
-            <PLValueCell value={position.dtd_pl} label="DTD P&L" rowIndex={0} columnIndex={1} />
-            <PLValueCell value={position.mtd_pl} label="MTD P&L" rowIndex={0} columnIndex={2} />
-            <PLValueCell value={position.ytd_pl} label="YTD P&L" rowIndex={0} columnIndex={3} />
+            <PLValueCell value={position.inception_pl} label="Inception P&L" rowIndex={rowIndex} columnIndex={0} />
+            <PLValueCell value={position.dtd_pl} label="DTD P&L" rowIndex={rowIndex} columnIndex={1} />
+            <PLValueCell value={position.mtd_pl} label="MTD P&L" rowIndex={rowIndex} columnIndex={2} />
+            <PLValueCell value={position.ytd_pl} label="YTD P&L" rowIndex={rowIndex} columnIndex={3} />
 
             <TableCell align="center" sx={{ minWidth: '80px', height: '60px', verticalAlign: 'middle' }}>
                 <Tooltip title="Update Price">

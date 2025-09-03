@@ -106,12 +106,10 @@ const StockManagement: React.FC = () => {
 
         try {
             if (editingStock) {
-                // TODO: Update existing stock
-                // await stockApi.updateStock(editingStock._id!, formData);
+                await stockApi.updateStock(editingStock._id!, formData);
                 setSuccess('Stock updated successfully!');
             } else {
-                // TODO: Create new stock
-                // await stockApi.createStock(formData);
+                await stockApi.createStock(formData);
                 setSuccess('Stock created successfully!');
             }
 
@@ -137,8 +135,7 @@ const StockManagement: React.FC = () => {
         }
 
         try {
-            // TODO: Delete stock
-            // await stockApi.deleteStock(stockId);
+            await stockApi.deleteStock(stockId);
             setSuccess('Stock deleted successfully!');
             loadStocks();
         } catch (err: any) {

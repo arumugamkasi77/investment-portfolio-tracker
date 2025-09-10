@@ -339,6 +339,7 @@ const PortfolioAnalytics: React.FC = () => {
                         <Tab label="Correlations" />
                         <Tab label="Insights" />
                         <Tab label="Recommendations" />
+                        <Tab label="Analyst Recommendations" />
                     </Tabs>
                 </Box>
 
@@ -785,6 +786,237 @@ const PortfolioAnalytics: React.FC = () => {
                                 </Box>
                             </Paper>
                         ))}
+                    </Box>
+                </TabPanel>
+
+                {/* Analyst Recommendations Tab */}
+                <TabPanel value={tabValue} index={4}>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: 'repeat(2, 1fr)' }, gap: 3 }}>
+                        {/* Latest Recommendations */}
+                        <Box>
+                            <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <LightbulbIcon color="primary" />
+                                Latest Analyst Recommendations
+                            </Typography>
+                            
+                            {/* Sample Analyst Recommendations - Replace with real data */}
+                            <Box sx={{ space: 2 }}>
+                                <Paper sx={{ p: 3, mb: 2, borderLeft: 4, borderLeftColor: 'success.main' }}>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                                        <Chip label="BUY" color="success" size="small" />
+                                        <Typography variant="body2" color="text.secondary">
+                                            Goldman Sachs • Updated 2 days ago
+                                        </Typography>
+                                    </Box>
+                                    <Typography variant="h6" gutterBottom>
+                                        AAPL - Strong Q4 Performance Expected
+                                    </Typography>
+                                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                                        Target Price: $220.00 | Current: $195.50
+                                    </Typography>
+                                    <Typography variant="body2">
+                                        <strong>Key Justifications:</strong>
+                                    </Typography>
+                                    <List dense>
+                                        <ListItem sx={{ py: 0.5 }}>
+                                            <ListItemText 
+                                                primary="• iPhone 15 Pro Max sales exceeding expectations by 15%"
+                                                primaryTypographyProps={{ fontSize: '0.875rem' }}
+                                            />
+                                        </ListItem>
+                                        <ListItem sx={{ py: 0.5 }}>
+                                            <ListItemText 
+                                                primary="• Services revenue growth accelerating to 12% YoY"
+                                                primaryTypographyProps={{ fontSize: '0.875rem' }}
+                                            />
+                                        </ListItem>
+                                        <ListItem sx={{ py: 0.5 }}>
+                                            <ListItemText 
+                                                primary="• Strong China market recovery with 8% growth"
+                                                primaryTypographyProps={{ fontSize: '0.875rem' }}
+                                            />
+                                        </ListItem>
+                                    </List>
+                                </Paper>
+
+                                <Paper sx={{ p: 3, mb: 2, borderLeft: 4, borderLeftColor: 'warning.main' }}>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                                        <Chip label="HOLD" color="warning" size="small" />
+                                        <Typography variant="body2" color="text.secondary">
+                                            Morgan Stanley • Updated 1 day ago
+                                        </Typography>
+                                    </Box>
+                                    <Typography variant="h6" gutterBottom>
+                                        NVDA - Cautious on AI Chip Demand
+                                    </Typography>
+                                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                                        Target Price: $850.00 | Current: $875.20
+                                    </Typography>
+                                    <Typography variant="body2">
+                                        <strong>Key Justifications:</strong>
+                                    </Typography>
+                                    <List dense>
+                                        <ListItem sx={{ py: 0.5 }}>
+                                            <ListItemText 
+                                                primary="• Data center spending showing signs of moderation"
+                                                primaryTypographyProps={{ fontSize: '0.875rem' }}
+                                            />
+                                        </ListItem>
+                                        <ListItem sx={{ py: 0.5 }}>
+                                            <ListItemText 
+                                                primary="• Competition from AMD and Intel intensifying"
+                                                primaryTypographyProps={{ fontSize: '0.875rem' }}
+                                            />
+                                        </ListItem>
+                                        <ListItem sx={{ py: 0.5 }}>
+                                            <ListItemText 
+                                                primary="• Valuation metrics stretched at current levels"
+                                                primaryTypographyProps={{ fontSize: '0.875rem' }}
+                                            />
+                                        </ListItem>
+                                    </List>
+                                </Paper>
+
+                                <Paper sx={{ p: 3, mb: 2, borderLeft: 4, borderLeftColor: 'error.main' }}>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                                        <Chip label="SELL" color="error" size="small" />
+                                        <Typography variant="body2" color="text.secondary">
+                                            JP Morgan • Updated 3 days ago
+                                        </Typography>
+                                    </Box>
+                                    <Typography variant="h6" gutterBottom>
+                                        TSLA - Execution Risks Rising
+                                    </Typography>
+                                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                                        Target Price: $180.00 | Current: $245.30
+                                    </Typography>
+                                    <Typography variant="body2">
+                                        <strong>Key Justifications:</strong>
+                                    </Typography>
+                                    <List dense>
+                                        <ListItem sx={{ py: 0.5 }}>
+                                            <ListItemText 
+                                                primary="• Cybertruck production delays affecting delivery targets"
+                                                primaryTypographyProps={{ fontSize: '0.875rem' }}
+                                            />
+                                        </ListItem>
+                                        <ListItem sx={{ py: 0.5 }}>
+                                            <ListItemText 
+                                                primary="• Increased competition in Chinese EV market"
+                                                primaryTypographyProps={{ fontSize: '0.875rem' }}
+                                            />
+                                        </ListItem>
+                                        <ListItem sx={{ py: 0.5 }}>
+                                            <ListItemText 
+                                                primary="• Regulatory scrutiny on autonomous driving claims"
+                                                primaryTypographyProps={{ fontSize: '0.875rem' }}
+                                            />
+                                        </ListItem>
+                                    </List>
+                                </Paper>
+                            </Box>
+                        </Box>
+
+                        {/* Recommendation Statistics */}
+                        <Box>
+                            <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <AssessmentIcon color="primary" />
+                                Recommendation Statistics
+                            </Typography>
+                            
+                            {/* Overall Portfolio Sentiment */}
+                            <Paper sx={{ p: 3, mb: 3, textAlign: 'center', bgcolor: 'primary.50' }}>
+                                <Typography variant="h3" color="primary" gutterBottom>
+                                    65%
+                                </Typography>
+                                <Typography variant="h6" color="text.secondary">
+                                    Bullish Sentiment
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary">
+                                    Based on latest analyst ratings
+                                </Typography>
+                            </Paper>
+
+                            {/* Recommendation Breakdown */}
+                            <Paper sx={{ p: 3, mb: 3 }}>
+                                <Typography variant="subtitle1" gutterBottom>
+                                    Portfolio Holdings Breakdown
+                                </Typography>
+                                <Box sx={{ space: 2 }}>
+                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                            <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: 'success.main' }} />
+                                            <Typography variant="body2">Strong Buy</Typography>
+                                        </Box>
+                                        <Typography variant="h6" color="success.main">3</Typography>
+                                    </Box>
+                                    <LinearProgress 
+                                        variant="determinate" 
+                                        value={30} 
+                                        sx={{ height: 8, borderRadius: 4, mb: 2 }}
+                                    />
+
+                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                            <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: 'success.light' }} />
+                                            <Typography variant="body2">Buy</Typography>
+                                        </Box>
+                                        <Typography variant="h6" color="success.main">4</Typography>
+                                    </Box>
+                                    <LinearProgress 
+                                        variant="determinate" 
+                                        value={40} 
+                                        sx={{ height: 8, borderRadius: 4, mb: 2 }}
+                                    />
+
+                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                            <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: 'warning.main' }} />
+                                            <Typography variant="body2">Hold</Typography>
+                                        </Box>
+                                        <Typography variant="h6" color="warning.main">2</Typography>
+                                    </Box>
+                                    <LinearProgress 
+                                        variant="determinate" 
+                                        value={20} 
+                                        sx={{ height: 8, borderRadius: 4, mb: 2 }}
+                                    />
+
+                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                            <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: 'error.main' }} />
+                                            <Typography variant="body2">Sell</Typography>
+                                        </Box>
+                                        <Typography variant="h6" color="error.main">1</Typography>
+                                    </Box>
+                                    <LinearProgress 
+                                        variant="determinate" 
+                                        value={10} 
+                                        sx={{ height: 8, borderRadius: 4 }}
+                                    />
+                                </Box>
+                            </Paper>
+
+                            {/* Key Metrics */}
+                            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 2 }}>
+                                <Paper sx={{ p: 2, textAlign: 'center' }}>
+                                    <Typography variant="h4" color="primary">
+                                        8.2
+                                    </Typography>
+                                    <Typography variant="body2" color="text.secondary">
+                                        Avg Target Price Upside
+                                    </Typography>
+                                </Paper>
+                                <Paper sx={{ p: 2, textAlign: 'center' }}>
+                                    <Typography variant="h4" color="success.main">
+                                        7
+                                    </Typography>
+                                    <Typography variant="body2" color="text.secondary">
+                                        Bullish Ratings
+                                    </Typography>
+                                </Paper>
+                            </Box>
+                        </Box>
                     </Box>
                 </TabPanel>
             </Card>

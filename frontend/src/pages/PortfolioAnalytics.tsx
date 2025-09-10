@@ -50,6 +50,26 @@ interface PortfolioAnalytics {
     summary_metrics: any;
 }
 
+interface AnalystRecommendation {
+    symbol: string;
+    rating: 'BUY' | 'HOLD' | 'SELL';
+    analyst: string;
+    daysAgo: number;
+    currentPrice: string;
+    targetPrice: string;
+    justifications: string[];
+}
+
+interface RecommendationStats {
+    strongBuy: number;
+    buy: number;
+    hold: number;
+    sell: number;
+    bullishSentiment: number;
+    avgTargetUpside: number;
+    bullishRatings: number;
+}
+
 interface TabPanelProps {
     children?: React.ReactNode;
     index: number;
@@ -184,14 +204,13 @@ const PortfolioAnalytics: React.FC = () => {
     };
 
     // Generate analyst recommendations for portfolio stocks
-    const generateAnalystRecommendations = (positions: any[]) => {
-        const recommendations = [];
+    const generateAnalystRecommendations = (positions: any[]): AnalystRecommendation[] => {
+        const recommendations: AnalystRecommendation[] = [];
         const analysts = ['Goldman Sachs', 'Morgan Stanley', 'JP Morgan', 'Bank of America', 'Wells Fargo', 'Citigroup'];
-        const ratingTypes = ['BUY', 'HOLD', 'SELL'];
-        const ratingColors = { 'BUY': 'success', 'HOLD': 'warning', 'SELL': 'error' };
+        const ratingTypes: ('BUY' | 'HOLD' | 'SELL')[] = ['BUY', 'HOLD', 'SELL'];
         
         // Sample justifications for different scenarios
-        const justifications = {
+        const justifications: Record<'BUY' | 'HOLD' | 'SELL', string[]> = {
             'BUY': [
                 'Strong quarterly earnings beating expectations by 15%',
                 'New product launches driving revenue growth',
@@ -243,11 +262,11 @@ const PortfolioAnalytics: React.FC = () => {
     };
 
     // Calculate recommendation statistics based on portfolio holdings
-    const calculateRecommendationStats = (positions: any[]) => {
+    const calculateRecommendationStats = (positions: any[]): { recommendations: AnalystRecommendation[], stats: RecommendationStats } => {
         const recommendations = generateAnalystRecommendations(positions);
         const totalStocks = recommendations.length;
         
-        const stats = {
+        const stats: RecommendationStats = {
             strongBuy: 0,
             buy: 0,
             hold: 0,
@@ -282,7 +301,7 @@ const PortfolioAnalytics: React.FC = () => {
         });
 
         stats.bullishSentiment = Math.round((stats.bullishRatings / totalStocks) * 100);
-        stats.avgTargetUpside = upsideCount > 0 ? (totalUpside / upsideCount).toFixed(1) : 0;
+        stats.avgTargetUpside = upsideCount > 0 ? Number((totalUpside / upsideCount).toFixed(1)) : 0;
 
         return { recommendations, stats };
     };
@@ -966,7 +985,7 @@ const PortfolioAnalytics: React.FC = () => {
                                                             <strong>Key Justifications:</strong>
                                                         </Typography>
                                                         <List dense>
-                                                            {rec.justifications.map((justification, idx) => (
+                                                            {rec.justifications.map((justification: string, idx: number) => (
                                                                 <ListItem key={idx} sx={{ py: 0.5 }}>
                                                                     <ListItemText 
                                                                         primary={`• ${justification}`}

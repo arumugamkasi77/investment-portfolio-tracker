@@ -203,10 +203,9 @@ const PortfolioAnalytics: React.FC = () => {
         return 'success';
     };
 
-    // Generate analyst recommendations for portfolio stocks
-    const generateAnalystRecommendations = (positions: any[]): AnalystRecommendation[] => {
-        const recommendations: AnalystRecommendation[] = [];
-        const analysts = ['Goldman Sachs', 'Morgan Stanley', 'JP Morgan', 'Bank of America', 'Wells Fargo', 'Citigroup'];
+    // Generate multiple analyst recommendations for each stock
+    const generateStockRecommendations = (symbol: string, currentPrice: number): AnalystRecommendation[] => {
+        const analysts = ['Goldman Sachs', 'Morgan Stanley', 'JP Morgan', 'Bank of America', 'Wells Fargo', 'Citigroup', 'Deutsche Bank', 'UBS', 'Credit Suisse', 'Barclays'];
         const ratingTypes: ('BUY' | 'HOLD' | 'SELL')[] = ['BUY', 'HOLD', 'SELL'];
         
         // Sample justifications for different scenarios
@@ -216,39 +215,51 @@ const PortfolioAnalytics: React.FC = () => {
                 'New product launches driving revenue growth',
                 'Market share expansion in key segments',
                 'Strong balance sheet with low debt levels',
-                'Management guidance raised for next quarter'
+                'Management guidance raised for next quarter',
+                'Innovation pipeline showing promising results',
+                'International expansion driving growth',
+                'Cost reduction initiatives improving margins'
             ],
             'HOLD': [
                 'Valuation metrics appear stretched at current levels',
                 'Competition intensifying in core markets',
                 'Mixed signals from recent earnings report',
                 'Market volatility affecting short-term outlook',
-                'Regulatory headwinds impacting growth prospects'
+                'Regulatory headwinds impacting growth prospects',
+                'Supply chain challenges affecting production',
+                'Currency headwinds impacting international revenue',
+                'Management transition creating uncertainty'
             ],
             'SELL': [
                 'Execution risks rising with management changes',
                 'Declining margins due to increased competition',
                 'Regulatory scrutiny affecting business model',
                 'Supply chain disruptions impacting production',
-                'Market saturation in key product categories'
+                'Market saturation in key product categories',
+                'Debt levels increasing beyond comfort zone',
+                'Key customer concentration risk',
+                'Technology disruption threatening core business'
             ]
         };
 
-        positions.forEach((position, index) => {
-            const rating = ratingTypes[index % ratingTypes.length];
-            const analyst = analysts[index % analysts.length];
-            const daysAgo = Math.floor(Math.random() * 7) + 1;
+        // Generate 3-5 recommendations per stock
+        const numRecommendations = 3 + Math.floor(Math.random() * 3); // 3-5 recommendations
+        const recommendations: AnalystRecommendation[] = [];
+
+        for (let i = 0; i < numRecommendations; i++) {
+            const rating = ratingTypes[Math.floor(Math.random() * ratingTypes.length)];
+            const analyst = analysts[Math.floor(Math.random() * analysts.length)];
+            const daysAgo = Math.floor(Math.random() * 14) + 1; // 1-14 days ago
             
-            // Generate realistic target and current prices
-            const currentPrice = position.current_price || position.average_cost;
+            // Generate realistic target prices based on rating
             const targetPrice = rating === 'BUY' 
-                ? currentPrice * (1.1 + Math.random() * 0.2) // 10-30% upside
+                ? currentPrice * (1.05 + Math.random() * 0.25) // 5-30% upside
                 : rating === 'HOLD'
-                ? currentPrice * (0.95 + Math.random() * 0.1) // -5% to +5%
-                : currentPrice * (0.7 + Math.random() * 0.2); // -30% to -10%
+                ? currentPrice * (0.90 + Math.random() * 0.20) // -10% to +10%
+                : currentPrice * (0.60 + Math.random() * 0.30); // -40% to -10%
 
             recommendations.push({
-                symbol: position.symbol,
+                symbol,
                 rating,
                 analyst,
                 daysAgo,
@@ -256,16 +267,26 @@ const PortfolioAnalytics: React.FC = () => {
                 targetPrice: targetPrice.toFixed(2),
                 justifications: justifications[rating].slice(0, 3)
             });
-        });
+        }
 
-        return recommendations;
+        // Sort by most recent (lowest daysAgo)
+        return recommendations.sort((a, b) => a.daysAgo - b.daysAgo);
     };
 
-    // Calculate recommendation statistics based on portfolio holdings
-    const calculateRecommendationStats = (positions: any[]): { recommendations: AnalystRecommendation[], stats: RecommendationStats } => {
-        const recommendations = generateAnalystRecommendations(positions);
-        const totalStocks = recommendations.length;
+    // Generate analyst recommendations for all portfolio stocks
+    const generateAllRecommendations = (positions: any[]): { [symbol: string]: AnalystRecommendation[] } => {
+        const allRecommendations: { [symbol: string]: AnalystRecommendation[] } = {};
         
+        positions.forEach((position) => {
+            const currentPrice = position.current_price || position.average_cost;
+            allRecommendations[position.symbol] = generateStockRecommendations(position.symbol, currentPrice);
+        });
+
+        return allRecommendations;
+    };
+
+    // Calculate recommendation statistics for a specific stock
+    const calculateStockStats = (recommendations: AnalystRecommendation[]): RecommendationStats => {
         const stats: RecommendationStats = {
             strongBuy: 0,
             buy: 0,
@@ -300,10 +321,11 @@ const PortfolioAnalytics: React.FC = () => {
             }
         });
 
-        stats.bullishSentiment = Math.round((stats.bullishRatings / totalStocks) * 100);
+        const totalRecommendations = recommendations.length;
+        stats.bullishSentiment = totalRecommendations > 0 ? Math.round((stats.bullishRatings / totalRecommendations) * 100) : 0;
         stats.avgTargetUpside = upsideCount > 0 ? Number((totalUpside / upsideCount).toFixed(1)) : 0;
 
-        return { recommendations, stats };
+        return stats;
     };
 
     if (!analytics) {
@@ -933,182 +955,194 @@ const PortfolioAnalytics: React.FC = () => {
                 {/* Analyst Recommendations Tab */}
                 <TabPanel value={tabValue} index={4}>
                     {(() => {
-                        const { recommendations, stats } = calculateRecommendationStats(portfolioPositions);
-                        const totalPages = Math.ceil(recommendations.length / itemsPerPage);
-                        const startIndex = (currentPage - 1) * itemsPerPage;
-                        const endIndex = startIndex + itemsPerPage;
-                        const currentRecommendations = recommendations.slice(startIndex, endIndex);
+                        const allRecommendations = generateAllRecommendations(portfolioPositions);
+                        const stockSymbols = Object.keys(allRecommendations);
 
                         return (
-                            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: 'repeat(2, 1fr)' }, gap: 3 }}>
-                                {/* Latest Recommendations */}
-                                <Box>
-                                    <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                        <LightbulbIcon color="primary" />
-                                        Analyst Recommendations for {analytics.portfolio_name}
-                                    </Typography>
-                                    
-                                    {portfolioPositions.length === 0 ? (
-                                        <Alert severity="info">
-                                            No positions found in this portfolio. Add some trades to see analyst recommendations.
-                                        </Alert>
-                                    ) : (
-                                        <>
-                                            <Box sx={{ space: 2 }}>
-                                                {currentRecommendations.map((rec, index) => (
-                                                    <Paper key={index} sx={{ 
-                                                        p: 3, 
-                                                        mb: 2, 
-                                                        borderLeft: 4, 
-                                                        borderLeftColor: rec.rating === 'BUY' ? 'success.main' : 
-                                                                        rec.rating === 'HOLD' ? 'warning.main' : 'error.main'
-                                                    }}>
-                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                                                            <Chip 
-                                                                label={rec.rating} 
-                                                                color={rec.rating === 'BUY' ? 'success' : 
-                                                                      rec.rating === 'HOLD' ? 'warning' : 'error'} 
-                                                                size="small" 
-                                                            />
-                                                            <Typography variant="body2" color="text.secondary">
-                                                                {rec.analyst} • Updated {rec.daysAgo} day{rec.daysAgo > 1 ? 's' : ''} ago
-                                                            </Typography>
-                                                        </Box>
-                                                        <Typography variant="h6" gutterBottom>
-                                                            {rec.symbol} - {rec.rating === 'BUY' ? 'Strong Growth Potential' : 
-                                                                        rec.rating === 'HOLD' ? 'Mixed Signals' : 'Execution Risks Rising'}
-                                                        </Typography>
-                                                        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                                                            Target Price: ${rec.targetPrice} | Current: ${rec.currentPrice}
-                                                        </Typography>
-                                                        <Typography variant="body2">
-                                                            <strong>Key Justifications:</strong>
-                                                        </Typography>
-                                                        <List dense>
-                                                            {rec.justifications.map((justification: string, idx: number) => (
-                                                                <ListItem key={idx} sx={{ py: 0.5 }}>
-                                                                    <ListItemText 
-                                                                        primary={`• ${justification}`}
-                                                                        primaryTypographyProps={{ fontSize: '0.875rem' }}
+                            <Box>
+                                <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
+                                    <LightbulbIcon color="primary" />
+                                    Analyst Recommendations for {analytics.portfolio_name}
+                                </Typography>
+                                
+                                {portfolioPositions.length === 0 ? (
+                                    <Alert severity="info">
+                                        No positions found in this portfolio. Add some trades to see analyst recommendations.
+                                    </Alert>
+                                ) : (
+                                    <Box sx={{ space: 4 }}>
+                                        {stockSymbols.map((symbol, stockIndex) => {
+                                            const stockRecommendations = allRecommendations[symbol];
+                                            const stockStats = calculateStockStats(stockRecommendations);
+                                            const position = portfolioPositions.find(p => p.symbol === symbol);
+                                            
+                                            return (
+                                                <Card key={symbol} sx={{ mb: 4 }}>
+                                                    <CardHeader
+                                                        title={
+                                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                                                <Typography variant="h5" component="div">
+                                                                    {symbol}
+                                                                </Typography>
+                                                                {position && (
+                                                                    <Chip 
+                                                                        label={`${position.position_quantity} shares @ $${position.average_cost}`}
+                                                                        color="primary"
+                                                                        variant="outlined"
+                                                                        size="small"
                                                                     />
-                                                                </ListItem>
-                                                            ))}
-                                                        </List>
-                                                    </Paper>
-                                                ))}
-                                            </Box>
-
-                                            {/* Pagination */}
-                                            {totalPages > 1 && (
-                                                <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
-                                                    <Pagination
-                                                        count={totalPages}
-                                                        page={currentPage}
-                                                        onChange={(event, page) => setCurrentPage(page)}
-                                                        color="primary"
-                                                        size="large"
+                                                                )}
+                                                            </Box>
+                                                        }
+                                                        subheader={`${stockRecommendations.length} recent analyst recommendations`}
                                                     />
-                                                </Box>
-                                            )}
-                                        </>
-                                    )}
-                                </Box>
+                                                    <CardContent>
+                                                        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: 'repeat(2, 1fr)' }, gap: 3 }}>
+                                                            {/* Stock Recommendations */}
+                                                            <Box>
+                                                                <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                                    <AssessmentIcon color="primary" />
+                                                                    Recent Recommendations
+                                                                </Typography>
+                                                                <Box sx={{ space: 2 }}>
+                                                                    {stockRecommendations.map((rec, recIndex) => (
+                                                                        <Paper key={recIndex} sx={{ 
+                                                                            p: 3, 
+                                                                            mb: 2, 
+                                                                            borderLeft: 4, 
+                                                                            borderLeftColor: rec.rating === 'BUY' ? 'success.main' : 
+                                                                                            rec.rating === 'HOLD' ? 'warning.main' : 'error.main'
+                                                                        }}>
+                                                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                                                                                <Chip 
+                                                                                    label={rec.rating} 
+                                                                                    color={rec.rating === 'BUY' ? 'success' : 
+                                                                                          rec.rating === 'HOLD' ? 'warning' : 'error'} 
+                                                                                    size="small" 
+                                                                                />
+                                                                                <Typography variant="body2" color="text.secondary">
+                                                                                    {rec.analyst} • {rec.daysAgo} day{rec.daysAgo > 1 ? 's' : ''} ago
+                                                                                </Typography>
+                                                                            </Box>
+                                                                            <Typography variant="h6" gutterBottom>
+                                                                                {rec.rating === 'BUY' ? 'Strong Growth Potential' : 
+                                                                                rec.rating === 'HOLD' ? 'Mixed Signals' : 'Execution Risks Rising'}
+                                                                            </Typography>
+                                                                            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                                                                                Target: ${rec.targetPrice} | Current: ${rec.currentPrice}
+                                                                            </Typography>
+                                                                            <Typography variant="body2" sx={{ mb: 1 }}>
+                                                                                <strong>Key Justifications:</strong>
+                                                                            </Typography>
+                                                                            <List dense>
+                                                                                {rec.justifications.map((justification: string, idx: number) => (
+                                                                                    <ListItem key={idx} sx={{ py: 0.5 }}>
+                                                                                        <ListItemText 
+                                                                                            primary={`• ${justification}`}
+                                                                                            primaryTypographyProps={{ fontSize: '0.875rem' }}
+                                                                                        />
+                                                                                    </ListItem>
+                                                                                ))}
+                                                                            </List>
+                                                                        </Paper>
+                                                                    ))}
+                                                                </Box>
+                                                            </Box>
 
-                                {/* Recommendation Statistics */}
-                                <Box>
-                                    <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                        <AssessmentIcon color="primary" />
-                                        Recommendation Statistics
-                                    </Typography>
-                                    
-                                    {portfolioPositions.length === 0 ? (
-                                        <Alert severity="info">
-                                            Statistics will appear once you have positions in this portfolio.
-                                        </Alert>
-                                    ) : (
-                                        <>
-                                            {/* Overall Portfolio Sentiment */}
-                                            <Paper sx={{ p: 3, mb: 3, textAlign: 'center', bgcolor: 'primary.50' }}>
-                                                <Typography variant="h3" color="primary" gutterBottom>
-                                                    {stats.bullishSentiment}%
-                                                </Typography>
-                                                <Typography variant="h6" color="text.secondary">
-                                                    Bullish Sentiment
-                                                </Typography>
-                                                <Typography variant="body2" color="text.secondary">
-                                                    Based on latest analyst ratings
-                                                </Typography>
-                                            </Paper>
+                                                            {/* Stock Statistics */}
+                                                            <Box>
+                                                                <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                                    <TrendingUpIcon color="primary" />
+                                                                    {symbol} Statistics
+                                                                </Typography>
+                                                                
+                                                                {/* Stock Sentiment */}
+                                                                <Paper sx={{ p: 3, mb: 3, textAlign: 'center', bgcolor: 'primary.50' }}>
+                                                                    <Typography variant="h3" color="primary" gutterBottom>
+                                                                        {stockStats.bullishSentiment}%
+                                                                    </Typography>
+                                                                    <Typography variant="h6" color="text.secondary">
+                                                                        Bullish Sentiment
+                                                                    </Typography>
+                                                                    <Typography variant="body2" color="text.secondary">
+                                                                        Based on {stockRecommendations.length} analyst ratings
+                                                                    </Typography>
+                                                                </Paper>
 
-                                            {/* Recommendation Breakdown */}
-                                            <Paper sx={{ p: 3, mb: 3 }}>
-                                                <Typography variant="subtitle1" gutterBottom>
-                                                    Portfolio Holdings Breakdown
-                                                </Typography>
-                                                <Box sx={{ space: 2 }}>
-                                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                                            <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: 'success.main' }} />
-                                                            <Typography variant="body2">Buy</Typography>
+                                                                {/* Rating Breakdown */}
+                                                                <Paper sx={{ p: 3, mb: 3 }}>
+                                                                    <Typography variant="subtitle1" gutterBottom>
+                                                                        Rating Breakdown
+                                                                    </Typography>
+                                                                    <Box sx={{ space: 2 }}>
+                                                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                                                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                                                <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: 'success.main' }} />
+                                                                                <Typography variant="body2">Buy</Typography>
+                                                                            </Box>
+                                                                            <Typography variant="h6" color="success.main">{stockStats.buy}</Typography>
+                                                                        </Box>
+                                                                        <LinearProgress 
+                                                                            variant="determinate" 
+                                                                            value={stockRecommendations.length > 0 ? (stockStats.buy / stockRecommendations.length) * 100 : 0} 
+                                                                            sx={{ height: 8, borderRadius: 4, mb: 2 }}
+                                                                        />
+
+                                                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                                                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                                                <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: 'warning.main' }} />
+                                                                                <Typography variant="body2">Hold</Typography>
+                                                                            </Box>
+                                                                            <Typography variant="h6" color="warning.main">{stockStats.hold}</Typography>
+                                                                        </Box>
+                                                                        <LinearProgress 
+                                                                            variant="determinate" 
+                                                                            value={stockRecommendations.length > 0 ? (stockStats.hold / stockRecommendations.length) * 100 : 0} 
+                                                                            sx={{ height: 8, borderRadius: 4, mb: 2 }}
+                                                                        />
+
+                                                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                                                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                                                <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: 'error.main' }} />
+                                                                                <Typography variant="body2">Sell</Typography>
+                                                                            </Box>
+                                                                            <Typography variant="h6" color="error.main">{stockStats.sell}</Typography>
+                                                                        </Box>
+                                                                        <LinearProgress 
+                                                                            variant="determinate" 
+                                                                            value={stockRecommendations.length > 0 ? (stockStats.sell / stockRecommendations.length) * 100 : 0} 
+                                                                            sx={{ height: 8, borderRadius: 4 }}
+                                                                        />
+                                                                    </Box>
+                                                                </Paper>
+
+                                                                {/* Key Metrics */}
+                                                                <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 2 }}>
+                                                                    <Paper sx={{ p: 2, textAlign: 'center' }}>
+                                                                        <Typography variant="h4" color="primary">
+                                                                            {stockStats.avgTargetUpside}%
+                                                                        </Typography>
+                                                                        <Typography variant="body2" color="text.secondary">
+                                                                            Avg Upside
+                                                                        </Typography>
+                                                                    </Paper>
+                                                                    <Paper sx={{ p: 2, textAlign: 'center' }}>
+                                                                        <Typography variant="h4" color="success.main">
+                                                                            {stockStats.bullishRatings}
+                                                                        </Typography>
+                                                                        <Typography variant="body2" color="text.secondary">
+                                                                            Bullish Ratings
+                                                                        </Typography>
+                                                                    </Paper>
+                                                                </Box>
+                                                            </Box>
                                                         </Box>
-                                                        <Typography variant="h6" color="success.main">{stats.buy}</Typography>
-                                                    </Box>
-                                                    <LinearProgress 
-                                                        variant="determinate" 
-                                                        value={portfolioPositions.length > 0 ? (stats.buy / portfolioPositions.length) * 100 : 0} 
-                                                        sx={{ height: 8, borderRadius: 4, mb: 2 }}
-                                                    />
-
-                                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                                            <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: 'warning.main' }} />
-                                                            <Typography variant="body2">Hold</Typography>
-                                                        </Box>
-                                                        <Typography variant="h6" color="warning.main">{stats.hold}</Typography>
-                                                    </Box>
-                                                    <LinearProgress 
-                                                        variant="determinate" 
-                                                        value={portfolioPositions.length > 0 ? (stats.hold / portfolioPositions.length) * 100 : 0} 
-                                                        sx={{ height: 8, borderRadius: 4, mb: 2 }}
-                                                    />
-
-                                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                                            <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: 'error.main' }} />
-                                                            <Typography variant="body2">Sell</Typography>
-                                                        </Box>
-                                                        <Typography variant="h6" color="error.main">{stats.sell}</Typography>
-                                                    </Box>
-                                                    <LinearProgress 
-                                                        variant="determinate" 
-                                                        value={portfolioPositions.length > 0 ? (stats.sell / portfolioPositions.length) * 100 : 0} 
-                                                        sx={{ height: 8, borderRadius: 4 }}
-                                                    />
-                                                </Box>
-                                            </Paper>
-
-                                            {/* Key Metrics */}
-                                            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 2 }}>
-                                                <Paper sx={{ p: 2, textAlign: 'center' }}>
-                                                    <Typography variant="h4" color="primary">
-                                                        {stats.avgTargetUpside}%
-                                                    </Typography>
-                                                    <Typography variant="body2" color="text.secondary">
-                                                        Avg Target Price Upside
-                                                    </Typography>
-                                                </Paper>
-                                                <Paper sx={{ p: 2, textAlign: 'center' }}>
-                                                    <Typography variant="h4" color="success.main">
-                                                        {stats.bullishRatings}
-                                                    </Typography>
-                                                    <Typography variant="body2" color="text.secondary">
-                                                        Bullish Ratings
-                                                    </Typography>
-                                                </Paper>
-                                            </Box>
-                                        </>
-                                    )}
-                                </Box>
+                                                    </CardContent>
+                                                </Card>
+                                            );
+                                        })}
+                                    </Box>
+                                )}
                             </Box>
                         );
                     })()}
